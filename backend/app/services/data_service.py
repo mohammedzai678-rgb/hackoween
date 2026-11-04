@@ -1232,23 +1232,23 @@ class DataService:
                 sm = float(r.get("soil_moisture") or 0.35)
                 tmax = float(r.get("temp_max_c") or 20.0)
 
-                # Historical station baseline flow
+                # Historical station baseline flow and P90 flood threshold
                 hist_med = float(st_meta.median_discharge_cfs) if (st_meta and st_meta.median_discharge_cfs) else (np.power(max(area, 1.0), 0.82) * 1.15)
-                hist_p90 = float(st_meta.p90_discharge_cfs) if (st_meta and st_meta.p90_discharge_cfs) else (hist_med * 3.2)
+                hist_p90 = float(st_meta.p90_discharge_cfs) if (st_meta and st_meta.p90_discharge_cfs) else (hist_med * 2.8)
+                surge_gap = max(hist_p90 - hist_med, hist_med * 0.85, 50.0)
 
-                # Causal antecedent precipitation index (recedes gradually on dry days after storm)
-                prev_api = carryover_by_station.get(sid, rain * 0.35)
-                curr_api = 0.72 * prev_api + rain
-                carryover_by_station[sid] = curr_api
+                # Causal antecedent precipitation index (recedes on dry days after storm)
+                prev_api = carryover_by_station.get(sid, 0.0)
+                eff_rain = 0.82 * rain + 0.18 * prev_api
+                carryover_by_station[sid] = 0.55 * prev_api + rain
 
-                # Baseflow modulated by soil moisture + temperature evapotranspiration
-                et_factor = max(0.75, 1.05 - 0.008 * max(0.0, tmax - 15.0))
-                base_q = hist_med * (0.45 + 1.35 * sm) * et_factor
+                # Baseflow modulated by soil moisture + temperature evapotranspiration (stays below P90 on dry/light-rain days)
+                et_factor = max(0.75, 1.04 - 0.006 * max(0.0, tmax - 15.0))
+                base_q = hist_med * (0.62 + 0.60 * sm) * et_factor
 
-                # Nonlinear storm + antecedent recession pulse scaled to basin flashiness
-                runoff_coeff = np.clip(0.10 + 0.55 * sm + 0.015 * slope, 0.06, 0.92)
-                storm_scale = max((hist_p90 - hist_med) / 28.0, np.power(max(area, 1.0), 0.65) * 2.8)
-                storm_q = (0.65 * rain + 0.35 * curr_api) * runoff_coeff * storm_scale * (1.0 + max(0.0, sm - 0.30) * 1.4)
+                # Storm pulse calibrated to station's (P90 - Median) surge gap so only heavy storm peak days exceed P90
+                runoff_mult = 0.55 + 0.85 * sm + 0.008 * min(slope, 15.0)
+                storm_q = surge_gap * (eff_rain / 38.0) * runoff_mult
 
                 preds_list.append(float(base_q + storm_q))
 
