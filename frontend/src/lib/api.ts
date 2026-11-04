@@ -1727,91 +1727,17 @@ export async function runPrediction(
 
   if (data && Array.isArray(data.predictions)) {
     return {
-      run_id: data.run_id || runId || "run_008_ensemble_final",
-      model_used: data.model_used || "LightGBM Multi-Objective Ensemble",
+      run_id: data.run_id || runId || "run_final_ensemble",
+      model_used: data.model_used || "FLOODCAST 4-Branch LightGBM ML Ensemble",
       row_count: Number(data.row_count ?? data.predictions.length),
       clipped_negatives_count: Number(data.clipped_negatives_count ?? 0),
       predictions: data.predictions,
     };
   }
 
-  // USDA TR-55 SCS Curve Number (AMC I/II/III) + Nash (1957) linear reservoir fallback if backend is offline
-  let clippedCount = 0;
-  let prevApi5 = 0;
-  let prevRoutedMm = 0;
-  const preds = rows.map((r) => {
-    const st =
-      FALLBACK_STATIONS.find((s) => s.station_id === r.station_id) ||
-      FALLBACK_STATIONS[0];
-    const area = r.drainage_area_sqmi ?? st.drainage_area_sqmi ?? 5000;
-    const slope = r.slope_pct ?? st.slope_pct ?? 4.5;
-    const forest = r.forest_cover_pct ?? st.forest_cover_pct ?? 40.0;
-    const rain = Number(r.precipitation_mm ?? 0);
-    const sm = Number(r.soil_moisture ?? 0.35);
-
-    const histMed = st.median_discharge_cfs || 1500;
-    const histP90 = st.p90_discharge_cfs || histMed * 2.8;
-    const histP99 = st.p99_discharge_cfs || histP90 * 2.1;
-    const histMax = st.max_discharge_cfs || histP99 * 1.35;
-
-    // USDA SCS Curve Number (CN_II adjusted for soil moisture AMC I/II/III, Chow et al. 1988)
-    const cnII = Math.min(91, Math.max(52, 78 - 0.22 * forest + 0.65 * Math.min(slope, 20)));
-    const cnI = (4.2 * cnII) / (10 - 0.058 * cnII);
-    const cnIII = (23 * cnII) / (10 + 0.13 * cnII);
-    const wetnessIdx = Math.min(1.15, Math.max(-0.85, (sm - 0.32) / 0.32 + prevApi5 / 90));
-    const cnEff = wetnessIdx < 0 ? cnII + (cnII - cnI) * wetnessIdx : cnII + (cnIII - cnII) * Math.min(wetnessIdx, 1);
-    prevApi5 = 0.70 * prevApi5 + rain;
-
-    const sMm = Math.max(8, 25400 / cnEff - 254);
-    const iaMm = 0.12 * sMm;
-
-    // Direct surface runoff on TODAY's rainfall P_t (zero when P_t <= Ia, e.g. dry days)
-    const qScsTodayMm = rain > iaMm ? Math.pow(rain - iaMm, 2) / (rain - iaMm + sMm) : 0;
-    const qInterflowMm = rain > 2 ? Math.max(0, (rain - 2) * 0.07 * (sm / 0.32)) : 0;
-    const newRunoffMm = qScsTodayMm + qInterflowMm;
-
-    // Nash (1957) linear reservoir channel routing
-    const recessK = Math.min(0.46, Math.max(0.28, 0.32 + 0.03 * Math.log10(Math.max(area, 10)) - 0.006 * Math.min(slope, 15)));
-    const routedMm = (1 - 0.25 * recessK) * newRunoffMm + recessK * prevRoutedMm;
-    prevRoutedMm = routedMm;
-
-    const smRatio = Math.min(2.2, Math.max(0.25, sm / 0.32));
-    const baseflow = Math.min(histMed * (0.45 + 0.55 * Math.pow(smRatio, 0.55)), histP90 * 0.76);
-    const surgeToP90 = Math.max(histP90 - baseflow, histMed * 0.5, 25);
-
-    let stormPulse = 0;
-    if (routedMm <= 11.5) {
-      stormPulse = surgeToP90 * (routedMm / 11.5);
-    } else {
-      const excessMm = routedMm - 11.5;
-      const upperHeadroom = Math.max(histMax * 1.05 - histP90, histP99 - histP90, surgeToP90 * 1.5);
-      stormPulse = surgeToP90 + upperHeadroom * (excessMm / (excessMm + 28));
-    }
-
-    const rawVal = baseflow + stormPulse;
-    const wasClipped = rawVal < 0;
-    if (wasClipped) clippedCount++;
-    const clippedVal = Number(Math.max(0.0, rawVal).toFixed(2));
-
-    return {
-      station_id: r.station_id,
-      date: r.date,
-      discharge_cfs: clippedVal,
-      raw_unclipped_cfs: Number(rawVal.toFixed(2)),
-      was_clipped: wasClipped,
-      is_extreme_p90: clippedVal >= histP90,
-      precipitation_mm: rain,
-      soil_moisture: sm,
-    };
-  });
-
-  return {
-    run_id: runId || "run_final_ensemble",
-    model_used: "FLOODCAST 3-Branch LightGBM Ensemble (SCS-CN + Duan Smearing)",
-    row_count: preds.length,
-    clipped_negatives_count: clippedCount,
-    predictions: preds,
-  };
+  throw new Error(
+    "Backend ML inference endpoint POST /api/v1/predict did not return predictions (no fallback enabled)."
+  );
 }
 
 export async function validateSubmissionCsv(

@@ -146,6 +146,68 @@ def main() -> None:
     })
     duan_cf_map = smear_df.groupby("station_id")["exp_res"].mean().clip(lower=0.90, upper=1.25).to_dict()
 
+    print("[3.5/4] Training Physics-Constrained Monotonic Storm-Response LightGBM (model_storm_response.lgb)...")
+    # Short-window meteorological & catchment features with monotonic constraints (Ke et al. 2017 LightGBM)
+    storm_features = [
+        "precipitation_mm",
+        "rain_sum_2d",
+        "rain_sum_3d",
+        "rain_sum_7d",
+        "rain_sum_14d",
+        "rain_max_1d_in_3d",
+        "rain_max_1d_in_7d",
+        "rain_decayed_05",
+        "rain_decayed_055",
+        "rain_decayed_08",
+        "soil_moisture",
+        "soil_moisture_mean_7d",
+        "soil_x_rain",
+        "runoff_proxy",
+        "runoff_coeff_proxy",
+        "fast_runoff_depth",
+        "temp_max_c",
+        "temp_min_c",
+        "doy_sin",
+        "doy_cos",
+        "drainage_area_sqmi",
+        "slope_pct",
+        "forest_cover_pct",
+        "mean_elevation_ft",
+    ]
+    # Monotonic constraints: +1 for rainfall, decayed rain, soil moisture, and runoff proxies; 0 for static/temp/calendar
+    mono_constraints = [
+        1 if (f.startswith("rain_") or f == "precipitation_mm" or "soil" in f or "runoff" in f) else 0
+        for f in storm_features
+    ]
+    st_meds = feat_df.groupby("station_id")["discharge_cfs"].median().clip(lower=1.0)
+    st_p90s = feat_df.groupby("station_id")["discharge_cfs"].quantile(0.90).clip(lower=10.0)
+    med_vec = feat_df["station_id"].map(st_meds).values
+    p90_vec = feat_df["station_id"].map(st_p90s).values
+    surge_gap_vec = np.maximum(p90_vec - med_vec, med_vec * 0.85)
+    # Target is normalized station surge index: 0.0 = station median, 1.0 = station P90 flood threshold
+    y_storm_idx = np.clip((y_tr - med_vec * 0.45) / surge_gap_vec, 0.0, 4.5)
+
+    m_storm = lgb.train(
+        {
+            "objective": "regression",
+            "metric": "rmse",
+            "learning_rate": 0.03,
+            "num_leaves": 63,
+            "min_child_samples": 50,
+            "feature_fraction": 0.85,
+            "bagging_fraction": 0.85,
+            "bagging_freq": 1,
+            "lambda_l2": 8.0,
+            "monotone_constraints": mono_constraints,
+            "seed": 42,
+            "n_jobs": -1,
+            "verbose": -1,
+        },
+        lgb.Dataset(feat_df[storm_features], label=y_storm_idx, weight=scale_weights),
+        num_boost_round=450,
+    )
+    m_storm.save_model(str(ARTIFACTS_DIR / "model_storm_response.lgb"))
+
     print("[4/4] Saving station hydrological priors & empirical runoff elasticity (station_priors.json)...")
     priors = {}
     for sid, grp in train_df.groupby("station_id"):

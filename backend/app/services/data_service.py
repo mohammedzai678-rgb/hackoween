@@ -1179,165 +1179,175 @@ class DataService:
             input_df[scol] = pd.to_numeric(input_df[scol], errors="coerce").fillna(100.0)
 
         # ---------------------------------------------------------------------
-        # Real Multi-Model ML Ensemble Inference (LightGBM Raw + Scaled + Log1p Duan Smearing)
-        # coupled with USDA TR-55 SCS Curve Number (AMC I/II/III) & Kohler-Linsley API
+        # Strict 4-Branch LightGBM ML Ensemble Inference (NO FALLBACK PERMITTED)
+        # Models required:
+        #   1. model_lgb_seed42.lgb (127-feature Raw L2 LightGBM)
+        #   2. model_scaled.lgb (127-feature Station-Scaled LightGBM, Kratzert et al. 2019)
+        #   3. model_log1p.lgb (127-feature Log1p + Duan 1983 Smearing LightGBM)
+        #   4. model_storm_response.lgb (25-feature Monotonically Constrained Storm LightGBM)
         # ---------------------------------------------------------------------
+        import lightgbm as lgb
+
         ensemble_dir = ARTIFACTS_DIR / "final_ensemble"
         priors_path = ensemble_dir / "station_priors.json"
         spinup_path = ensemble_dir / "station_spinup_120d.csv"
 
         if not hasattr(self, "_ml_bundle_cache") or self._ml_bundle_cache is None:
-            bundle: Dict[str, Any] = {"priors": {}, "spinup": pd.DataFrame(), "models": {}, "cfg": {}}
-            try:
-                import lightgbm as lgb
+            if not priors_path.exists() or not spinup_path.exists():
+                raise RuntimeError(
+                    f"Required ML ensemble priors/spinup missing in {ensemble_dir} (no fallback permitted)."
+                )
+            with open(priors_path, "r", encoding="utf-8") as pf:
+                loaded_priors = json.load(pf)
+            sp_df = pd.read_csv(spinup_path, dtype={"station_id": str})
+            sp_df["station_id"] = sp_df["station_id"].apply(self._normalize_station_id)
 
-                bundle["cfg"] = load_yaml_config()
-                if priors_path.exists():
-                    with open(priors_path, "r", encoding="utf-8") as pf:
-                        bundle["priors"] = json.load(pf)
-                if spinup_path.exists():
-                    sp_df = pd.read_csv(spinup_path, dtype={"station_id": str})
-                    sp_df["station_id"] = sp_df["station_id"].apply(self._normalize_station_id)
-                    bundle["spinup"] = sp_df
-                for m_key, m_fname in [
-                    ("raw", "model_lgb_seed42.lgb"),
-                    ("scaled", "model_scaled.lgb"),
-                    ("log1p", "model_log1p.lgb"),
-                ]:
-                    m_path = ensemble_dir / m_fname
-                    if m_path.exists():
-                        bundle["models"][m_key] = lgb.Booster(model_file=str(m_path))
-                self._ml_bundle_cache = bundle
-            except Exception as exc:
-                logger.warning("Failed to initialize ML ensemble cache: %s", exc)
-                self._ml_bundle_cache = bundle
+            loaded_models: Dict[str, Any] = {}
+            for m_key, m_fname in [
+                ("raw", "model_lgb_seed42.lgb"),
+                ("scaled", "model_scaled.lgb"),
+                ("log1p", "model_log1p.lgb"),
+                ("storm", "model_storm_response.lgb"),
+            ]:
+                m_path = ensemble_dir / m_fname
+                if not m_path.exists():
+                    raise RuntimeError(
+                        f"Required LightGBM booster '{m_fname}' missing in {ensemble_dir} (no fallback permitted)."
+                    )
+                loaded_models[m_key] = lgb.Booster(model_file=str(m_path))
+
+            self._ml_bundle_cache = {
+                "priors": loaded_priors,
+                "spinup": sp_df,
+                "models": loaded_models,
+                "cfg": load_yaml_config(),
+            }
 
         bundle = self._ml_bundle_cache
-        priors_map: Dict[str, Any] = bundle.get("priors", {})
-        spinup_all: pd.DataFrame = bundle.get("spinup", pd.DataFrame())
-        ml_models: Dict[str, Any] = bundle.get("models", {})
-        cfg: Dict[str, Any] = bundle.get("cfg", {})
+        priors_map: Dict[str, Any] = bundle["priors"]
+        spinup_all: pd.DataFrame = bundle["spinup"]
+        ml_models: Dict[str, Any] = bundle["models"]
+        cfg: Dict[str, Any] = bundle["cfg"]
 
         station_summaries = {s.station_id: s for s in self.get_stations_list()}
         selected_run_id = "run_final_ensemble"
-        model_used = "FLOODCAST 3-Branch LightGBM Ensemble (Scaled + Log1p Duan Smearing + Raw L2)"
+        model_used = "FLOODCAST 4-Branch LightGBM ML Ensemble (Scaled + Log1p Duan + Raw L2 + Monotonic Storm GBDT)"
 
-        # Step 1: Run 127-feature LightGBM Ensemble with 60-day station spin-up
-        ml_base_preds: Optional[np.ndarray] = None
-        if len(ml_models) >= 1 and not spinup_all.empty:
-            try:
-                input_tagged = input_df.copy()
-                input_tagged["_is_target_row"] = 1
-                input_tagged["_orig_order"] = np.arange(len(input_tagged))
-                input_tagged["discharge_cfs"] = np.nan
+        # Step 1: Prepare 60-day station spin-up + target rows and compute all 127 features
+        input_tagged = input_df.copy()
+        input_tagged["_is_target_row"] = 1
+        input_tagged["_orig_order"] = np.arange(len(input_tagged))
+        input_tagged["discharge_cfs"] = np.nan
 
-                spin_pieces = []
-                for sid, grp in input_tagged.groupby("station_id"):
-                    st_spin = spinup_all[spinup_all["station_id"] == sid].tail(60).copy()
-                    if not st_spin.empty:
-                        # Align spin-up dates immediately prior to first input date & condition on initial soil moisture
-                        first_dt = pd.to_datetime(grp["date"].min())
-                        n_sp = len(st_spin)
-                        st_spin["date"] = [
-                            (first_dt - pd.Timedelta(days=n_sp - k)).strftime("%Y-%m-%d")
-                            for k in range(n_sp)
-                        ]
-                        init_sm = float(grp["soil_moisture"].iloc[0])
-                        mean_sm_hist = float(st_spin["soil_moisture"].mean()) if st_spin["soil_moisture"].mean() > 0 else 0.30
-                        sm_ratio = np.clip(init_sm / mean_sm_hist, 0.25, 2.5)
-                        st_spin["soil_moisture"] = np.clip(st_spin["soil_moisture"] * sm_ratio, 0.04, 0.95)
-                        # Scale spin-up rainfall if dry soil (drought antecedent condition)
-                        if sm_ratio < 0.75:
-                            st_spin["precipitation_mm"] = st_spin["precipitation_mm"] * (sm_ratio ** 1.5)
-                        st_spin["_is_target_row"] = 0
-                        st_spin["_orig_order"] = -1
-                        spin_pieces.append(st_spin)
-
-                combined_in = (
-                    pd.concat(spin_pieces + [input_tagged], ignore_index=True)
-                    if spin_pieces
-                    else input_tagged
-                )
-                feat_df = compute_all_features(combined_in, cfg, train_discharge=None)
-
-                # Populate the 25 station-level historical features from station_priors.json
-                row_months = pd.to_datetime(feat_df["date"]).dt.month
-                for col_name, p_key in [
-                    ("station_mean_q", "mean_q"),
-                    ("station_median_q", "median_q"),
-                    ("station_std_q", "std_q"),
-                    ("station_p75_q", "p75_q"),
-                    ("station_p90_q", "p90_q"),
-                    ("station_p99_q", "p99_q"),
-                ]:
-                    feat_df[col_name] = [
-                        float(priors_map.get(str(s), {}).get(p_key, 1000.0))
-                        for s in feat_df["station_id"]
-                    ]
-
-                for m in range(1, 13):
-                    feat_df[f"station_monthly_mean_q_{m}"] = [
-                        float(priors_map.get(str(s), {}).get("monthly_mean_q", {}).get(str(m), priors_map.get(str(s), {}).get("mean_q", 1000.0)))
-                        for s in feat_df["station_id"]
-                    ]
-
-                feat_df["station_current_month_q"] = [
-                    float(priors_map.get(str(s), {}).get("monthly_mean_q", {}).get(str(int(mo)), priors_map.get(str(s), {}).get("mean_q", 1000.0)))
-                    for s, mo in zip(feat_df["station_id"], row_months)
+        spin_pieces = []
+        for sid, grp in input_tagged.groupby("station_id"):
+            st_spin = spinup_all[spinup_all["station_id"] == sid].tail(60).copy()
+            if not st_spin.empty:
+                first_dt = pd.to_datetime(grp["date"].min())
+                n_sp = len(st_spin)
+                st_spin["date"] = [
+                    (first_dt - pd.Timedelta(days=n_sp - k)).strftime("%Y-%m-%d")
+                    for k in range(n_sp)
                 ]
-                feat_df["station_doy_mean_q"] = feat_df["station_current_month_q"]
-                feat_df["station_doy_median_q"] = [
-                    float(priors_map.get(str(s), {}).get("monthly_median_q", {}).get(str(int(mo)), priors_map.get(str(s), {}).get("median_q", 600.0)))
-                    for s, mo in zip(feat_df["station_id"], row_months)
-                ]
+                init_sm = float(grp["soil_moisture"].iloc[0])
+                mean_sm_hist = float(st_spin["soil_moisture"].mean()) if st_spin["soil_moisture"].mean() > 0 else 0.30
+                sm_ratio_init = np.clip(init_sm / mean_sm_hist, 0.25, 2.5)
+                st_spin["soil_moisture"] = np.clip(st_spin["soil_moisture"] * sm_ratio_init, 0.04, 0.95)
+                if sm_ratio_init < 0.75:
+                    st_spin["precipitation_mm"] = st_spin["precipitation_mm"] * (sm_ratio_init ** 1.5)
+                st_spin["_is_target_row"] = 0
+                st_spin["_orig_order"] = -1
+                spin_pieces.append(st_spin)
 
-                wb_mean = feat_df.groupby("station_id")["conceptual_water_balance"].transform("mean").clip(lower=1e-6)
-                feat_df["station_calibrated_wb"] = feat_df["conceptual_water_balance"] * (feat_df["station_mean_q"] / wb_mean)
-                feat_df["station_doy_x_wb"] = feat_df["station_doy_mean_q"] * (feat_df["conceptual_water_balance"] / wb_mean)
+        combined_in = (
+            pd.concat(spin_pieces + [input_tagged], ignore_index=True)
+            if spin_pieces
+            else input_tagged
+        )
+        feat_df = compute_all_features(combined_in, cfg, train_discharge=None)
 
-                sm_mean_vec = np.array([
-                    max(float(priors_map.get(str(s), {}).get("mean_sm", 0.30)), 0.05)
-                    for s in feat_df["station_id"]
-                ])
-                feat_df["station_sm_ratio_q"] = feat_df["station_doy_mean_q"] * (feat_df["soil_moisture"].values / sm_mean_vec)
-                feat_df["station_rain_30d_scaled_q"] = feat_df["station_doy_mean_q"] * feat_df.get("rain_anomaly_30d_vs_365d", 1.0)
-                feat_df["station_rain_90d_scaled_q"] = feat_df["station_doy_mean_q"] * feat_df.get("rain_anomaly_90d_vs_365d", 1.0)
+        # Populate the 25 station-level historical features from station_priors.json
+        row_months = pd.to_datetime(feat_df["date"]).dt.month
+        for col_name, p_key in [
+            ("station_mean_q", "mean_q"),
+            ("station_median_q", "median_q"),
+            ("station_std_q", "std_q"),
+            ("station_p75_q", "p75_q"),
+            ("station_p90_q", "p90_q"),
+            ("station_p99_q", "p99_q"),
+        ]:
+            feat_df[col_name] = [
+                float(priors_map.get(str(s), {}).get(p_key, 1000.0))
+                for s in feat_df["station_id"]
+            ]
 
-                # Extract target rows in exact input order
-                target_mask = combined_in["_is_target_row"].values == 1
-                target_feat = feat_df.loc[target_mask].copy()
-                target_feat["_orig_order"] = combined_in.loc[target_mask, "_orig_order"].values
-                target_feat = target_feat.sort_values("_orig_order").reset_index(drop=True)
+        for m in range(1, 13):
+            feat_df[f"station_monthly_mean_q_{m}"] = [
+                float(priors_map.get(str(s), {}).get("monthly_mean_q", {}).get(str(m), priors_map.get(str(s), {}).get("mean_q", 1000.0)))
+                for s in feat_df["station_id"]
+            ]
 
-                ref_booster = next(iter(ml_models.values()))
-                model_features = ref_booster.feature_name()
-                for mf in model_features:
-                    if mf not in target_feat.columns:
-                        target_feat[mf] = 0.0
+        feat_df["station_current_month_q"] = [
+            float(priors_map.get(str(s), {}).get("monthly_mean_q", {}).get(str(int(mo)), priors_map.get(str(s), {}).get("mean_q", 1000.0)))
+            for s, mo in zip(feat_df["station_id"], row_months)
+        ]
+        feat_df["station_doy_mean_q"] = feat_df["station_current_month_q"]
+        feat_df["station_doy_median_q"] = [
+            float(priors_map.get(str(s), {}).get("monthly_median_q", {}).get(str(int(mo)), priors_map.get(str(s), {}).get("median_q", 600.0)))
+            for s, mo in zip(feat_df["station_id"], row_months)
+        ]
 
-                X_pred = target_feat[model_features]
-                st_mean_arr = target_feat["station_mean_q"].values
-                duan_cf_arr = np.array([
-                    float(priors_map.get(str(s), {}).get("duan_smearing_cf", 1.05))
-                    for s in target_feat["station_id"]
-                ])
-                alpha_scale = np.clip((st_mean_arr - 500.0) / 25000.0, 0.0, 1.0)
+        wb_mean = feat_df.groupby("station_id")["conceptual_water_balance"].transform("mean").clip(lower=1e-6)
+        feat_df["station_calibrated_wb"] = feat_df["conceptual_water_balance"] * (feat_df["station_mean_q"] / wb_mean)
+        feat_df["station_doy_x_wb"] = feat_df["station_doy_mean_q"] * (feat_df["conceptual_water_balance"] / wb_mean)
 
-                p_raw = np.clip(ml_models["raw"].predict(X_pred), 0.0, None) if "raw" in ml_models else st_mean_arr
-                p_scaled = np.clip(ml_models["scaled"].predict(X_pred) * st_mean_arr, 0.0, None) if "scaled" in ml_models else p_raw
-                p_log1p = np.clip(np.expm1(ml_models["log1p"].predict(X_pred)) * duan_cf_arr, 0.0, None) if "log1p" in ml_models else p_scaled
+        sm_mean_vec = np.array([
+            max(float(priors_map.get(str(s), {}).get("mean_sm", 0.30)), 0.05)
+            for s in feat_df["station_id"]
+        ])
+        feat_df["station_sm_ratio_q"] = feat_df["station_doy_mean_q"] * (feat_df["soil_moisture"].values / sm_mean_vec)
+        feat_df["station_rain_30d_scaled_q"] = feat_df["station_doy_mean_q"] * feat_df.get("rain_anomaly_30d_vs_365d", 1.0)
+        feat_df["station_rain_90d_scaled_q"] = feat_df["station_doy_mean_q"] * feat_df.get("rain_anomaly_90d_vs_365d", 1.0)
 
-                # Scale-consistent ensemble blend across Raw L2, Station-Scaled, and Log1p Duan Smearing
-                ml_base_preds = (
-                    alpha_scale * (0.40 * p_raw + 0.35 * p_scaled + 0.25 * p_log1p)
-                    + (1.0 - alpha_scale) * (0.45 * p_scaled + 0.40 * p_log1p + 0.15 * p_raw)
-                )
-            except Exception as exc:
-                logger.warning("ML ensemble spin-up inference error: %s", exc)
+        # Extract target rows in exact input order
+        target_mask = combined_in["_is_target_row"].values == 1
+        target_feat = feat_df.loc[target_mask].copy()
+        target_feat["_orig_order"] = combined_in.loc[target_mask, "_orig_order"].values
+        target_feat = target_feat.sort_values("_orig_order").reset_index(drop=True)
 
-        # Step 2: Combine 3-Branch LightGBM Ensemble with USDA-NRCS (1986) TR-55 SCS-CN
-        # (Chow, Maidment & Mays 1988 AMC I/II/III), Nash (1957) linear reservoir routing,
-        # and USGS 00060 rating-curve bounds (Rantz et al. 1982, WSP 2175)
+        # Execute all 4 trained LightGBM models (raw, scaled, log1p, storm)
+        model_features_127 = ml_models["raw"].feature_name()
+        for mf in model_features_127:
+            if mf not in target_feat.columns:
+                target_feat[mf] = 0.0
+
+        storm_features_25 = ml_models["storm"].feature_name()
+        for sf in storm_features_25:
+            if sf not in target_feat.columns:
+                target_feat[sf] = 0.0
+
+        X_pred_127 = target_feat[model_features_127]
+        X_pred_storm = target_feat[storm_features_25]
+
+        st_mean_arr = target_feat["station_mean_q"].values
+        duan_cf_arr = np.array([
+            float(priors_map.get(str(s), {}).get("duan_smearing_cf", 1.05))
+            for s in target_feat["station_id"]
+        ])
+        alpha_scale = np.clip((st_mean_arr - 500.0) / 25000.0, 0.0, 1.0)
+
+        p_raw = np.clip(ml_models["raw"].predict(X_pred_127), 0.0, None)
+        p_scaled = np.clip(ml_models["scaled"].predict(X_pred_127) * st_mean_arr, 0.0, None)
+        p_log1p = np.clip(np.expm1(ml_models["log1p"].predict(X_pred_127)) * duan_cf_arr, 0.0, None)
+        p_storm_idx = np.clip(ml_models["storm"].predict(X_pred_storm), 0.0, 4.5)
+
+        ml_base_preds = (
+            alpha_scale * (0.40 * p_raw + 0.35 * p_scaled + 0.25 * p_log1p)
+            + (1.0 - alpha_scale) * (0.45 * p_scaled + 0.40 * p_log1p + 0.15 * p_raw)
+        )
+
+        # Step 2: Combine 4-Branch LightGBM ML Ensemble (ml_base_preds + p_storm_idx)
+        # with USDA-NRCS (1986) TR-55 SCS-CN (Chow et al. 1988 AMC I/II/III) & Nash (1957) routing
         preds_list: List[float] = []
         routed_runoff_by_station: Dict[str, float] = {}
         api5_by_station: Dict[str, float] = {}
@@ -1372,8 +1382,7 @@ class DataService:
             cn_eff = float(np.clip(cn_eff, 42.0, 94.0))
             api5_by_station[sid] = 0.70 * prev_api5 + rain
 
-            # 2. USDA TR-55 SCS-CN Direct Surface Runoff on TODAY's rainfall P_t (Hawkins et al. 2002 Ia = 0.10*S)
-            # Crucially, when today's rain P_t <= Ia (e.g. dry day P_t = 0 mm or light drizzle), Q_scs = 0.0 mm!
+            # 2. USDA TR-55 SCS-CN Direct Surface Runoff on TODAY's rainfall P_t (Hawkins et al. 2002 Ia = 0.12*S)
             s_mm = max(25400.0 / cn_eff - 254.0, 8.0)
             ia_mm = 0.12 * s_mm
             if rain > ia_mm:
@@ -1381,38 +1390,31 @@ class DataService:
             else:
                 q_scs_today_mm = 0.0
 
-            # Gentle wet-day interflow for moderate rain below Ia
             q_interflow_mm = max(0.0, (rain - 2.0) * 0.07 * (sm / max(mean_sm_st, 0.15))) if rain > 2.0 else 0.0
             new_runoff_mm = q_scs_today_mm + q_interflow_mm
 
             # 3. Nash (1957) Single Linear Reservoir Channel Routing across consecutive days
-            # Large flat basins have slightly more carryover into Day t+1; steep headwaters flush faster
             recess_k = float(np.clip(0.32 + 0.03 * np.log10(max(area, 10.0)) - 0.006 * min(slope, 15.0), 0.28, 0.46))
             prev_routed_mm = routed_runoff_by_station.get(sid, 0.0)
             routed_mm = (1.0 - 0.25 * recess_k) * new_runoff_mm + recess_k * prev_routed_mm
             routed_runoff_by_station[sid] = routed_mm
 
-            # 4. Baseflow anchored by 3-Branch LightGBM ML Ensemble + soil moisture state
-            # Bounded below min(hist_p75 * 1.05, hist_p90 * 0.76) so non-storm/recession days NEVER falsely trigger P90+ SURGE
+            # 4. Baseflow from 4-Branch LightGBM ML Ensemble (ml_base_preds + monotonic p_storm_idx)
             sm_ratio = float(np.clip(sm / max(mean_sm_st, 0.12), 0.25, 2.2))
+            ml_q = float(ml_base_preds[idx_row]) * (0.55 + 0.45 * (sm_ratio ** 0.45))
+            ml_storm_factor = float(np.clip(0.65 + 0.35 * float(p_storm_idx[idx_row]), 0.65, 1.35))
             clim_base_q = hist_med * (0.45 + 0.55 * (sm_ratio ** 0.55))
-            if ml_base_preds is not None:
-                ml_q = float(ml_base_preds[idx_row]) * (0.55 + 0.45 * (sm_ratio ** 0.45))
-                base_q = 0.40 * min(ml_q, hist_p75 * 1.10) + 0.60 * clim_base_q
-            else:
-                base_q = clim_base_q
+            base_q = 0.45 * min(ml_q * ml_storm_factor, hist_p75 * 1.10) + 0.55 * clim_base_q
             base_q = min(base_q, hist_p90 * 0.76)
 
-            # 5. Concave USGS Rating-Curve mapping from routed runoff depth (mm) to discharge surge (cfs)
-            # At routed_mm = 11.5 mm (typical of ~50-65 mm peak storm rain), total Q crosses hist_p90.
-            # For extreme storms (90-150 mm), concave saturation approaches hist_p99..hist_max*1.08 (Rantz et al. 1982).
+            # 5. Concave USGS Rating-Curve mapping modulated by Monotonic Storm LightGBM (p_storm_idx)
             surge_to_p90 = max(hist_p90 - base_q, hist_med * 0.50, 25.0)
             if routed_mm <= 11.5:
-                storm_q = surge_to_p90 * (routed_mm / 11.5)
+                storm_q = surge_to_p90 * (routed_mm / 11.5) * (0.85 + 0.15 * ml_storm_factor)
             else:
                 excess_mm = routed_mm - 11.5
                 upper_headroom = max(hist_max * 1.05 - hist_p90, hist_p99 - hist_p90, surge_to_p90 * 1.5)
-                storm_q = surge_to_p90 + upper_headroom * (excess_mm / (excess_mm + 28.0))
+                storm_q = surge_to_p90 + upper_headroom * (excess_mm / (excess_mm + 28.0)) * ml_storm_factor
 
             preds_list.append(float(base_q + storm_q))
 
