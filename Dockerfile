@@ -19,12 +19,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=7860 \
     INTERNAL_API_URL=http://127.0.0.1:8000/api/v1
 
-# Install system dependencies + Node.js 20 + Ollama Local LLM
+# Install system dependencies + Node.js 20 + zstd + Ollama
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     curl \
     ca-certificates \
     procps \
+    zstd \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && curl -fsSL https://ollama.com/install.sh | sh \
@@ -34,12 +35,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r /app/requirements.txt
-
-# Pre-cache Qwen 2.5 (1.5B) model directly in the Docker image for instant offline startup
-RUN (ollama serve > /dev/null 2>&1 &) \
-    && sleep 3 \
-    && ollama pull qwen2.5:1.5b \
-    && pkill -f "ollama" || true
 
 # Copy Backend, Configs, Docs & ML Assets
 COPY floodcast /app/floodcast
