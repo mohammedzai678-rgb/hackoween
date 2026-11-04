@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -146,7 +146,7 @@ export default function ProblemPage() {
               <div className="flex justify-between text-xs font-mono mb-1.5">
                 <span className="text-slate-300">Catchment Drainage Area (drainage_area_sqmi)</span>
                 <span className="text-emerald-400 font-bold">
-                  {basinArea.toLocaleString()} sq mi
+                  {basinArea.toLocaleString("en-US")} sq mi
                 </span>
               </div>
               <input
@@ -179,7 +179,7 @@ export default function ProblemPage() {
                     isExtremePeak ? "text-amber-300" : "text-cyan-400"
                   }`}
                 >
-                  {surgeCfs.toLocaleString()} <span className="text-sm font-normal">cfs</span>
+                  {surgeCfs.toLocaleString("en-US")} <span className="text-sm font-normal">cfs</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 font-mono text-xs">
@@ -195,11 +195,11 @@ export default function ProblemPage() {
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">Baseflow Floor</span>
-                  <span className="text-slate-200">{Math.round(baseflowCfs).toLocaleString()} cfs</span>
+                  <span className="text-slate-200">{Math.round(baseflowCfs).toLocaleString("en-US")} cfs</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">Station P90 Peak</span>
-                  <span className="text-amber-400">{p90Threshold.toLocaleString()} cfs</span>
+                  <span className="text-amber-400">{p90Threshold.toLocaleString("en-US")} cfs</span>
                 </div>
               </div>
             </div>

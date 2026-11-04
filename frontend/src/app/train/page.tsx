@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -440,19 +440,19 @@ export default function TrainPage() {
               <div className="flex justify-between">
                 <span className="text-slate-400">Validation RMSE (40%):</span>
                 <span className="text-white font-bold">
-                  {(gateResponse?.result_notice?.val_rmse || 14420.6).toLocaleString()} cfs
+                  {(gateResponse?.result_notice?.val_rmse || 14420.6).toLocaleString("en-US")} cfs
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-amber-300">Extreme RMSE (30%):</span>
                 <span className="text-amber-300 font-bold">
-                  {(gateResponse?.result_notice?.val_extreme_rmse || 32940.2).toLocaleString()} cfs
+                  {(gateResponse?.result_notice?.val_extreme_rmse || 32940.2).toLocaleString("en-US")} cfs
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Validation MAE (20%):</span>
                 <span className="text-slate-200">
-                  {(gateResponse?.result_notice?.val_mae || 4612.8).toLocaleString()} cfs
+                  {(gateResponse?.result_notice?.val_mae || 4612.8).toLocaleString("en-US")} cfs
                 </span>
               </div>
               <div className="flex justify-between">

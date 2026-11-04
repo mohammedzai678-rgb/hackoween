@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -215,7 +215,7 @@ export default function PredictPage() {
               >
                 {FALLBACK_STATIONS.map((s) => (
                   <option key={s.station_id} value={s.station_id}>
-                    {s.station_id} — {s.station_name} ({s.drainage_area_sqmi.toLocaleString()}{" "}
+                    {s.station_id} — {s.station_name} ({s.drainage_area_sqmi.toLocaleString("en-US")}{" "}
                     sq mi)
                   </option>
                 ))}
@@ -382,7 +382,7 @@ export default function PredictPage() {
                           <td className="py-2 px-3 font-bold text-cyan-300">{p.station_id}</td>
                           <td className="py-2 px-3 text-slate-200">{p.date}</td>
                           <td className="py-2 px-3 font-extrabold text-emerald-400 text-sm">
-                            {Number(p.discharge_cfs).toLocaleString(undefined, {
+                            {Number(p.discharge_cfs).toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}

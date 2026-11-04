@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -410,7 +410,7 @@ export default function DataPage() {
                       {row.http_status}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-slate-200">{row.rows.toLocaleString()}</td>
+                  <td className="py-2.5 px-3 text-slate-200">{row.rows.toLocaleString("en-US")}</td>
                   <td className="py-2.5 px-3 text-emerald-400">{row.missing_pct}</td>
                   <td className="py-2.5 px-3">
                     <div className="text-slate-300">{row.cache_file}</div>

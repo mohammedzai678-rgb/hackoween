@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -126,7 +126,7 @@ export default function FeaturesPage() {
                         {imp.family}
                       </span>
                     </span>
-                    <span className="text-cyan-300">{imp.importance.toLocaleString()}</span>
+                    <span className="text-cyan-300">{imp.importance.toLocaleString("en-US")}</span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-slate-950 overflow-hidden">
                     <div
@@ -170,11 +170,11 @@ export default function FeaturesPage() {
                       <span className="font-bold text-slate-100">{ab.feature_family}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-white font-bold">
-                          {ab.with_family_rmse.toLocaleString()} cfs
+                          {ab.with_family_rmse.toLocaleString("en-US")} cfs
                         </span>
                         {ab.delta_rmse < 0 && (
                           <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[11px] font-bold text-emerald-300 border border-emerald-500/30">
-                            {ab.delta_rmse.toLocaleString()} cfs
+                            {ab.delta_rmse.toLocaleString("en-US")} cfs
                           </span>
                         )}
                       </div>
@@ -190,7 +190,7 @@ export default function FeaturesPage() {
                     <div className="flex items-center justify-between text-[11px] text-slate-400">
                       <span>{ab.notes}</span>
                       <span className="text-amber-300 shrink-0 ml-2">
-                        Ext RMSE: {ab.extreme_rmse.toLocaleString()}
+                        Ext RMSE: {ab.extreme_rmse.toLocaleString("en-US")}
                       </span>
                     </div>
                   </div>
@@ -294,7 +294,7 @@ export default function FeaturesPage() {
                     </td>
                     <td className="py-2.5 px-3 text-emerald-400">{item.lookback_window}</td>
                     <td className="py-2.5 px-3 text-slate-200">
-                      {item.importance.toLocaleString()}
+                      {item.importance.toLocaleString("en-US")}
                     </td>
                   </tr>
                 ))}

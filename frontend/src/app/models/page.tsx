@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -138,13 +138,13 @@ export default function ModelsPage() {
 
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-cyan-300">
-                      RMSE: <strong>{run.rmse.toLocaleString()}</strong>
+                      RMSE: <strong>{run.rmse.toLocaleString("en-US")}</strong>
                     </span>
                     <span className="text-amber-300">
-                      Ext RMSE: <strong>{run.extreme_rmse.toLocaleString()}</strong>
+                      Ext RMSE: <strong>{run.extreme_rmse.toLocaleString("en-US")}</strong>
                     </span>
                     <span className="text-sky-300">
-                      MAE: <strong>{run.mae.toLocaleString()}</strong>
+                      MAE: <strong>{run.mae.toLocaleString("en-US")}</strong>
                     </span>
                     <span className="text-indigo-300">
                       R²: <strong>{run.r2.toFixed(4)}</strong>
@@ -288,12 +288,12 @@ export default function ModelsPage() {
                   </td>
                   <td className="py-2.5 px-3 text-slate-300">{r.n_features}</td>
                   <td className="py-2.5 px-3 font-bold text-white">
-                    {r.rmse.toLocaleString()}
+                    {r.rmse.toLocaleString("en-US")}
                   </td>
                   <td className="py-2.5 px-3 font-bold text-amber-300">
-                    {r.extreme_rmse.toLocaleString()}
+                    {r.extreme_rmse.toLocaleString("en-US")}
                   </td>
-                  <td className="py-2.5 px-3 text-slate-200">{r.mae.toLocaleString()}</td>
+                  <td className="py-2.5 px-3 text-slate-200">{r.mae.toLocaleString("en-US")}</td>
                   <td className="py-2.5 px-3 text-slate-200">{r.r2.toFixed(4)}</td>
                   <td className="py-2.5 px-3">
                     <span className="rounded bg-emerald-500/20 px-2 py-0.5 font-bold text-emerald-300 border border-emerald-500/30">

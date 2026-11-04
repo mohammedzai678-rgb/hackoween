@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -301,7 +301,7 @@ export default function StationsPage() {
                         drainage_area_sqmi
                       </span>
                       <span className="mt-1 block text-base font-bold text-white">
-                        {activeStation.drainage_area_sqmi.toLocaleString()}{" "}
+                        {activeStation.drainage_area_sqmi.toLocaleString("en-US")}{" "}
                         <span className="text-[11px] font-normal text-slate-400">sq mi</span>
                       </span>
                     </div>
@@ -311,7 +311,7 @@ export default function StationsPage() {
                         mean_elevation_ft
                       </span>
                       <span className="mt-1 block text-base font-bold text-white">
-                        {activeStation.mean_elevation_ft.toLocaleString()}{" "}
+                        {activeStation.mean_elevation_ft.toLocaleString("en-US")}{" "}
                         <span className="text-[11px] font-normal text-slate-400">ft</span>
                       </span>
                     </div>
@@ -344,8 +344,8 @@ export default function StationsPage() {
                   <div className="flex justify-between">
                     <span className="text-slate-400">Mean / Median Flow:</span>
                     <span className="text-slate-100">
-                      {activeStation.mean_discharge_cfs.toLocaleString()} /{" "}
-                      {activeStation.median_discharge_cfs.toLocaleString()} cfs
+                      {activeStation.mean_discharge_cfs.toLocaleString("en-US")} /{" "}
+                      {activeStation.median_discharge_cfs.toLocaleString("en-US")} cfs
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -354,13 +354,13 @@ export default function StationsPage() {
                       Top-10% (P90) Flood Peak:
                     </span>
                     <span className="text-amber-300 font-bold">
-                      {activeStation.p90_discharge_cfs.toLocaleString()} cfs
+                      {activeStation.p90_discharge_cfs.toLocaleString("en-US")} cfs
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Max Historical Peak:</span>
                     <span className="text-rose-300 font-semibold">
-                      {activeStation.max_discharge_cfs.toLocaleString()} cfs
+                      {activeStation.max_discharge_cfs.toLocaleString("en-US")} cfs
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -461,7 +461,7 @@ export default function StationsPage() {
                       fontSize={10}
                       fontFamily="monospace"
                     >
-                      Top-10% Extreme Flood Threshold ({activeStation.p90_discharge_cfs.toLocaleString()} cfs)
+                      Top-10% Extreme Flood Threshold ({activeStation.p90_discharge_cfs.toLocaleString("en-US")} cfs)
                     </text>
                   </>
                 );
@@ -554,18 +554,18 @@ export default function StationsPage() {
                   <td className="py-2.5 px-3 text-slate-100">{st.station_name}</td>
                   <td className="py-2.5 px-3 text-slate-300">{st.state}</td>
                   <td className="py-2.5 px-3 text-slate-200">
-                    {st.drainage_area_sqmi.toLocaleString()} sq mi
+                    {st.drainage_area_sqmi.toLocaleString("en-US")} sq mi
                   </td>
                   <td className="py-2.5 px-3 text-slate-300">
                     {st.mean_elevation_ft} ft · {st.slope_pct}% · {st.forest_cover_pct}%
                   </td>
                   <td className="py-2.5 px-3">
                     <span className="text-slate-200">
-                      {st.mean_discharge_cfs.toLocaleString()}
+                      {st.mean_discharge_cfs.toLocaleString("en-US")}
                     </span>{" "}
                     /{" "}
                     <span className="text-amber-300 font-semibold">
-                      {st.p90_discharge_cfs.toLocaleString()} cfs
+                      {st.p90_discharge_cfs.toLocaleString("en-US")} cfs
                     </span>
                   </td>
                   <td className="py-2.5 px-3">

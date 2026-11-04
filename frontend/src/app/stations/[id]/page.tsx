@@ -144,7 +144,7 @@ export default function StationDetailPage() {
                   drainage_area
                 </span>
                 <span className="mt-1 block text-sm font-bold text-white">
-                  {st.drainage_area_sqmi.toLocaleString()} sq mi
+                  {st.drainage_area_sqmi.toLocaleString("en-US")} sq mi
                 </span>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
@@ -153,7 +153,7 @@ export default function StationDetailPage() {
                   mean_elev_ft
                 </span>
                 <span className="mt-1 block text-sm font-bold text-white">
-                  {st.mean_elevation_ft.toLocaleString()} ft
+                  {st.mean_elevation_ft.toLocaleString("en-US")} ft
                 </span>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
@@ -177,7 +177,7 @@ export default function StationDetailPage() {
               <div className="rounded-lg border border-cyan-500/30 bg-slate-950 p-3">
                 <span className="text-[10px] text-cyan-400">Station RMSE</span>
                 <span className="mt-1 block text-sm font-bold text-white">
-                  {stats?.val_rmse.toLocaleString()} cfs
+                  {stats?.val_rmse.toLocaleString("en-US")} cfs
                 </span>
               </div>
               <div className="rounded-lg border border-amber-500/30 bg-slate-950 p-3">
@@ -186,13 +186,13 @@ export default function StationDetailPage() {
                   Extreme RMSE
                 </span>
                 <span className="mt-1 block text-sm font-bold text-amber-300">
-                  {stats?.val_extreme_rmse.toLocaleString()} cfs
+                  {stats?.val_extreme_rmse.toLocaleString("en-US")} cfs
                 </span>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
                 <span className="text-[10px] text-slate-400">Station MAE</span>
                 <span className="mt-1 block text-sm font-bold text-white">
-                  {stats?.val_mae.toLocaleString()} cfs
+                  {stats?.val_mae.toLocaleString("en-US")} cfs
                 </span>
               </div>
               <div className="rounded-lg border border-emerald-500/30 bg-slate-950 p-3">
@@ -214,7 +214,7 @@ export default function StationDetailPage() {
                 </h2>
                 <p className="text-xs text-slate-400">
                   Showing {series.length} daily observations with top-10% flood threshold (
-                  {st.p90_discharge_cfs.toLocaleString()} cfs).
+                  {st.p90_discharge_cfs.toLocaleString("en-US")} cfs).
                 </p>
               </div>
               <div className="flex items-center gap-2 font-mono text-xs text-emerald-400">
@@ -304,10 +304,10 @@ export default function StationDetailPage() {
                     <tr key={pt.date} className="hover:bg-slate-950/60">
                       <td className="py-2 px-3 text-slate-200">{pt.date}</td>
                       <td className="py-2 px-3 font-bold text-cyan-300">
-                        {pt.discharge_cfs?.toLocaleString() ?? "—"}
+                        {pt.discharge_cfs?.toLocaleString("en-US") ?? "—"}
                       </td>
                       <td className="py-2 px-3 font-bold text-emerald-300">
-                        {pt.predicted_discharge_cfs?.toLocaleString() ?? "—"}
+                        {pt.predicted_discharge_cfs?.toLocaleString("en-US") ?? "—"}
                       </td>
                       <td className="py-2 px-3 text-sky-300">{pt.precipitation_mm} mm</td>
                       <td className="py-2 px-3 text-slate-300">

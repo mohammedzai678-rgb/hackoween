@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -69,7 +69,7 @@ export default function EvaluatePage() {
             <Flame className="h-4 w-4 text-amber-400" />
           </div>
           <div className="mt-2 text-2xl font-extrabold text-white">
-            {(detail?.val_metrics.extreme_rmse ?? 32940.2).toLocaleString()} cfs
+            {(detail?.val_metrics.extreme_rmse ?? 32940.2).toLocaleString("en-US")} cfs
           </div>
           <div className="mt-1 text-[11px] text-emerald-400">
             ↓ 47.0% vs unweighted baseline
@@ -123,7 +123,7 @@ export default function EvaluatePage() {
           >
             {FALLBACK_STATIONS.map((s) => (
               <option key={s.station_id} value={s.station_id}>
-                {s.station_id} — {s.station_name} (P90: {s.p90_discharge_cfs.toLocaleString()} cfs)
+                {s.station_id} — {s.station_name} (P90: {s.p90_discharge_cfs.toLocaleString("en-US")} cfs)
               </option>
             ))}
           </select>
@@ -159,7 +159,7 @@ export default function EvaluatePage() {
                     fontSize={10}
                     fontFamily="monospace"
                   >
-                    TOP-10% EXTREME FLOOD ZONE (≥ {stObj.p90_discharge_cfs.toLocaleString()} cfs · 30% Score Weight)
+                    TOP-10% EXTREME FLOOD ZONE (≥ {stObj.p90_discharge_cfs.toLocaleString("en-US")} cfs · 30% Score Weight)
                   </text>
                 </>
               );
@@ -224,18 +224,18 @@ export default function EvaluatePage() {
                     {row.station_name} ({row.state})
                   </td>
                   <td className="py-2 px-3 text-slate-300">
-                    {row.drainage_area_sqmi.toLocaleString()}
+                    {row.drainage_area_sqmi.toLocaleString("en-US")}
                   </td>
                   <td className="py-2 px-3 text-amber-300">
-                    {row.p90_threshold.toLocaleString()} cfs
+                    {row.p90_threshold.toLocaleString("en-US")} cfs
                   </td>
                   <td className="py-2 px-3 font-semibold text-white">
-                    {row.rmse.toLocaleString()}
+                    {row.rmse.toLocaleString("en-US")}
                   </td>
                   <td className="py-2 px-3 font-bold text-amber-300">
-                    {row.extreme_rmse.toLocaleString()}
+                    {row.extreme_rmse.toLocaleString("en-US")}
                   </td>
-                  <td className="py-2 px-3 text-slate-200">{row.mae.toLocaleString()}</td>
+                  <td className="py-2 px-3 text-slate-200">{row.mae.toLocaleString("en-US")}</td>
                   <td className="py-2 px-3 text-emerald-400">{row.r2.toFixed(4)}</td>
                   <td className="py-2 px-3 text-slate-300">
                     {row.underprediction_ratio_top10 > 0 ? "+" : ""}
@@ -314,10 +314,10 @@ export default function EvaluatePage() {
                       <div className="text-[10px] text-slate-400">{err.date}</div>
                     </td>
                     <td className="py-2 px-3 font-bold text-white">
-                      {err.actual_cfs.toLocaleString()}
+                      {err.actual_cfs.toLocaleString("en-US")}
                     </td>
                     <td className="py-2 px-3 text-cyan-300">
-                      {err.predicted_cfs.toLocaleString()}
+                      {err.predicted_cfs.toLocaleString("en-US")}
                     </td>
                     <td
                       className={`py-2 px-3 font-bold ${
@@ -325,7 +325,7 @@ export default function EvaluatePage() {
                       }`}
                     >
                       {err.residual_cfs > 0 ? "+" : ""}
-                      {err.residual_cfs.toLocaleString()} ({err.pct_error}%)
+                      {err.residual_cfs.toLocaleString("en-US")} ({err.pct_error}%)
                     </td>
                     <td className="py-2 px-3 text-slate-300">
                       {err.precipitation_mm} mm · SM {err.soil_moisture}

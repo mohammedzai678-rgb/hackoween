@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
@@ -93,7 +93,7 @@ export default function SubmissionPage() {
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
                 Verified{" "}
                 <strong className="font-mono text-white">
-                  {report?.row_count?.toLocaleString() || "11,680"}
+                  {report?.row_count?.toLocaleString("en-US") || "11,680"}
                 </strong>{" "}
                 prediction rows across{" "}
                 <strong className="font-mono text-white">
@@ -216,8 +216,8 @@ export default function SubmissionPage() {
                 <div>
                   <span className="text-slate-500 block text-[10px]">Min / Max cfs</span>
                   <span className="text-slate-200">
-                    {report.summary.min_discharge_cfs.toLocaleString()} /{" "}
-                    {report.summary.max_discharge_cfs.toLocaleString()}
+                    {report.summary.min_discharge_cfs.toLocaleString("en-US")} /{" "}
+                    {report.summary.max_discharge_cfs.toLocaleString("en-US")}
                   </span>
                 </div>
               </div>

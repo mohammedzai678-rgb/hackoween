@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -165,7 +165,7 @@ export default function HomePage() {
               <div className="flex justify-between">
                 <span className="text-slate-400">predictions.csv:</span>
                 <span className="text-emerald-400 font-semibold">
-                  {subStatus?.prediction_stats?.row_count?.toLocaleString() || "11,680"} rows ·
+                  {subStatus?.prediction_stats?.row_count?.toLocaleString("en-US") || "11,680"} rows ·
                   0 neg
                 </span>
               </div>
@@ -213,7 +213,7 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="mt-3 font-mono text-2xl font-extrabold text-white">
-                {(bestRun?.rmse ?? 14420.6).toLocaleString()}{" "}
+                {(bestRun?.rmse ?? 14420.6).toLocaleString("en-US")}{" "}
                 <span className="text-xs font-normal text-slate-400">cfs</span>
               </p>
               <p className="mt-1 text-[11px] text-emerald-400 font-mono">
@@ -233,7 +233,7 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="mt-3 font-mono text-2xl font-extrabold text-amber-200">
-                {(bestRun?.extreme_rmse ?? 32940.2).toLocaleString()}{" "}
+                {(bestRun?.extreme_rmse ?? 32940.2).toLocaleString("en-US")}{" "}
                 <span className="text-xs font-normal text-amber-300/70">cfs</span>
               </p>
               <p className="mt-1 text-[11px] text-amber-300/90 font-mono">
@@ -250,7 +250,7 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="mt-3 font-mono text-2xl font-extrabold text-white">
-                {(bestRun?.mae ?? 4612.8).toLocaleString()}{" "}
+                {(bestRun?.mae ?? 4612.8).toLocaleString("en-US")}{" "}
                 <span className="text-xs font-normal text-slate-400">cfs</span>
               </p>
               <p className="mt-1 text-[11px] text-slate-400 font-mono">
