@@ -26,12 +26,12 @@ from backend.app.services.rag_service import rag_service
 
 logger = logging.getLogger("floodcast.backend.chat_service")
 
-# Candidate Ollama host URLs (Docker container -> host, or local host execution)
+# Candidate Ollama host URLs (local container loopback, host proxy, or custom env)
 OLLAMA_CANDIDATE_URLS = [
     os.getenv("OLLAMA_BASE_URL"),
-    "http://host.docker.internal:11434",
     "http://127.0.0.1:11434",
     "http://localhost:11434",
+    "http://host.docker.internal:11434",
 ]
 OLLAMA_CANDIDATE_URLS = [u for u in OLLAMA_CANDIDATE_URLS if u]
 
