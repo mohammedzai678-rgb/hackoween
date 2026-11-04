@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ProblemStatementNote from "@/components/ProblemStatementNote";
 import {
   FALLBACK_STATIONS,
@@ -112,6 +112,11 @@ export default function PredictPage() {
     setResult(predRes);
     setLoading(false);
   };
+
+  useEffect(() => {
+    handleGenerateScenario();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStation, startDate, stormPeakMm, initialSoil]);
 
   const handleRunCurrentRows = async () => {
     setLoading(true);
@@ -383,7 +388,8 @@ export default function PredictPage() {
                             })}
                           </td>
                           <td className="py-2 px-3 text-slate-400">
-                            {p.precipitation_mm ?? 0} mm · SM {p.soil_moisture ?? 0.35}
+                            {p.precipitation_mm ?? rows[idx]?.precipitation_mm ?? 0} mm · SM{" "}
+                            {p.soil_moisture ?? rows[idx]?.soil_moisture ?? 0.35}
                           </td>
                           <td className="py-2 px-3">
                             {p.was_clipped ? (
