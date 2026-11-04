@@ -83,8 +83,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [models, setModels] = useState<string[]>(["qwen2.5:1.5b"]);
-  const [selectedModel, setSelectedModel] = useState("qwen2.5:1.5b");
+  const [models, setModels] = useState<string[]>(["qwen2.5:0.5b", "qwen2.5:1.5b"]);
+  const [selectedModel, setSelectedModel] = useState("qwen2.5:0.5b");
   const [useRag, setUseRag] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
@@ -557,7 +557,7 @@ export default function ChatPage() {
                           ) : msg.streaming ? (
                             <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] py-1">
                               <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-ping" />
-                              <span>Thinking &amp; retrieving telemetry…</span>
+                              <span>Thinking &amp; generating response…</span>
                             </div>
                           ) : null}
 
@@ -708,7 +708,7 @@ export default function ChatPage() {
               Press <kbd className="font-mono rounded border border-[var(--border-primary)] px-1 bg-[var(--bg-secondary)]">Enter</kbd> to send, <kbd className="font-mono rounded border border-[var(--border-primary)] px-1 bg-[var(--bg-secondary)]">Shift + Enter</kbd> for new line
             </span>
             <span className="hidden sm:inline font-mono">
-              Offline • Powered by Ollama Local Runtime
+              ⚡ Private Local LLM • Ollama Runtime
             </span>
           </div>
         </div>

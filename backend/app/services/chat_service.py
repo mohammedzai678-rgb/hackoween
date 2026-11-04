@@ -87,7 +87,7 @@ class LocalChatService:
         except Exception as exc:
             logger.warning("Could not fetch models from Ollama: %s", exc)
 
-        return ["qwen2.5:1.5b", "llama3.2:3b"]
+        return ["qwen2.5:0.5b", "qwen2.5:1.5b", "llama3.2:3b"]
 
     def _is_hydrology_or_platform_query(self, query: str) -> bool:
         """Check if query is asking about river discharge, models, or FloodCast platform."""
@@ -216,7 +216,11 @@ class LocalChatService:
         Final: data: {"done": true, "citations": [...], "model": "...", "sources_used": true}\n\n
         """
         base_url = self.get_ollama_base_url()
-        target_model = req.model or "qwen2.5:1.5b"
+        avail_models = self.get_available_models()
+        target_model = req.model or (avail_models[0] if avail_models else "qwen2.5:0.5b")
+        if avail_models and target_model not in avail_models:
+            # Fallback to the first installed model tag
+            target_model = avail_models[0]
 
         system_prompt, citations, sources_used = self._build_system_prompt_and_citations(
             req.message, req.use_rag
@@ -284,7 +288,11 @@ class LocalChatService:
     def generate_chat(self, req: ChatRequest) -> ChatResponse:
         """Non-streaming complete chat response."""
         base_url = self.get_ollama_base_url()
-        target_model = req.model or "qwen2.5:1.5b"
+        avail_models = self.get_available_models()
+        target_model = req.model or (avail_models[0] if avail_models else "qwen2.5:0.5b")
+        if avail_models and target_model not in avail_models:
+            # Fallback to the first installed model tag
+            target_model = avail_models[0]
 
         system_prompt, citations, sources_used = self._build_system_prompt_and_citations(
             req.message, req.use_rag

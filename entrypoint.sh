@@ -19,10 +19,11 @@ for i in $(seq 1 20); do
   sleep 1
 done
 
-# Ensure model is ready (pull in background if not already pre-cached)
-if ! ollama list 2>/dev/null | grep -q "qwen2.5:1.5b"; then
-  echo "Pulling qwen2.5:1.5b model in background..."
-  ollama pull qwen2.5:1.5b &
+# Ensure model is ready (pull lightweight 350MB model for cloud memory efficiency)
+DEPLOY_MODEL="${OLLAMA_MODEL:-qwen2.5:0.5b}"
+if ! ollama list 2>/dev/null | grep -q "$DEPLOY_MODEL"; then
+  echo "Pulling $DEPLOY_MODEL model in background..."
+  ollama pull "$DEPLOY_MODEL" &
 fi
 
 # 2. Launch FastAPI backend on internal port 8000
@@ -40,9 +41,9 @@ for i in $(seq 1 40); do
   sleep 1
 done
 
-# 3. Launch Next.js frontend (respects Railway $PORT or defaults to 7860)
-echo "[3/3] Launching Next.js on port ${PORT:-7860}..."
-cd /app/frontend
-export PORT=${PORT:-7860}
+# 3. Launch Next.js frontend (respects Railway $PORT or defaults to 8080)
+export PORT=${PORT:-8080}
 export HOSTNAME="0.0.0.0"
+echo "[3/3] Launching Next.js on port $PORT..."
+cd /app/frontend
 exec node server.js

@@ -16,7 +16,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    PORT=7860 \
+    PORT=8080 \
     INTERNAL_API_URL=http://127.0.0.1:8000/api/v1
 
 # Install system dependencies + Node.js 20 + zstd + Ollama
@@ -56,6 +56,6 @@ COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Expose default Hugging Face Spaces port
-EXPOSE 7860
+EXPOSE 8080
 
 CMD ["/app/entrypoint.sh"]
