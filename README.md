@@ -1,3 +1,13 @@
+---
+title: FLOODCAST
+emoji: 🌊
+colorFrom: blue
+colorTo: cyan
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # FLOODCAST — Predict the Surge Before It Strikes
 
 > **24-Hour Regression Hackathon · Hydrological Discharge Prediction (`discharge_cfs`)**

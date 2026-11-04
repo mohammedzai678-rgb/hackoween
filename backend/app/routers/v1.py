@@ -13,17 +13,28 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from backend.app.core.config import PROJECT_ROOT
 from backend.app.schemas.api_schemas import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
     DocContentResponse,
     DocItem,
     FeaturesResponse,
     PredictRequest,
     PredictResponse,
+    RagChunkMatch,
+    RagDocumentIngestRequest,
+    RagQueryRequest,
+    RagQueryResponse,
+    RagStatsResponse,
     RunDetail,
     RunSummary,
+    SimulationRecord,
+    SimulationSaveRequest,
     StationDetailResponse,
     StationSummary,
     SubmissionStatusResponse,
@@ -31,8 +42,10 @@ from backend.app.schemas.api_schemas import (
     TrainStartRequest,
     ValidationReportResponse,
 )
+from backend.app.services.chat_service import chat_service
 from backend.app.services.data_service import data_service
 from backend.app.services.job_manager import job_manager
+from backend.app.services.rag_service import rag_service
 
 logger = logging.getLogger("floodcast.backend.router.v1")
 
@@ -224,7 +237,7 @@ async def predict_discharge(request: Request) -> PredictResponse:
             detail="No input rows provided for prediction.",
         )
 
-    return data_service.predict_rows(rows=rows, run_id=run_id)
+    return await run_in_threadpool(data_service.predict_rows, rows=rows, run_id=run_id)
 
 
 @router.post(
@@ -294,3 +307,108 @@ def get_doc_content(doc_name: str) -> DocContentResponse:
             detail=f"Documentation file '{doc_name}' not found",
         )
     return doc
+
+
+# ============================================================
+# Stored Simulations Vault & FAISS + Transformer RAG Endpoints
+# ============================================================
+
+
+@router.get(
+    "/simulations",
+    response_model=List[SimulationRecord],
+    summary="List all stored storm simulations and predictions from the SQLite Vault",
+)
+def list_simulations() -> List[SimulationRecord]:
+    return rag_service.list_simulations()
+
+
+@router.post(
+    "/simulations",
+    response_model=SimulationRecord,
+    summary="Save a storm simulation & its predictions to SQLite Vault and index in FAISS Vector DB",
+)
+def save_simulation(req: SimulationSaveRequest) -> SimulationRecord:
+    return rag_service.save_simulation(req)
+
+
+@router.delete(
+    "/simulations/{sim_id}",
+    summary="Delete a stored simulation from SQLite Vault and rebuild FAISS Vector DB",
+)
+def delete_simulation(sim_id: str) -> Dict[str, Any]:
+    deleted = rag_service.delete_simulation(sim_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Simulation '{sim_id}' not found",
+        )
+    return {"deleted": True, "sim_id": sim_id}
+
+
+@router.get(
+    "/rag/stats",
+    response_model=RagStatsResponse,
+    summary="Get FAISS Vector Database & Transformer Embedding statistics",
+)
+def get_rag_stats() -> RagStatsResponse:
+    return rag_service.get_stats()
+
+
+@router.post(
+    "/rag/query",
+    response_model=RagQueryResponse,
+    summary="Run semantic vector search (FAISS IndexFlatIP + Transformer Embeddings) & grounded RAG synthesis",
+)
+def query_rag(req: RagQueryRequest) -> RagQueryResponse:
+    return rag_service.query_rag(req)
+
+
+@router.post(
+    "/rag/ingest",
+    response_model=RagChunkMatch,
+    summary="Ingest custom hydrological observations or station notes into the FAISS Vector Database",
+)
+def ingest_rag_document(req: RagDocumentIngestRequest) -> RagChunkMatch:
+    return rag_service.ingest_document(req)
+
+
+# ============================================================
+# Local RAG Chatbot Endpoints (Ollama + Vector Grounding)
+# ============================================================
+
+
+@router.get(
+    "/chat/models",
+    response_model=List[str],
+    summary="Get list of available local Ollama LLM models",
+)
+def get_chat_models() -> List[str]:
+    return chat_service.get_available_models()
+
+
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    summary="Non-streaming local RAG chatbot answer",
+)
+def post_chat(req: ChatRequest) -> ChatResponse:
+    return chat_service.generate_chat(req)
+
+
+@router.post(
+    "/chat/stream",
+    summary="Stream tokens from local RAG chatbot via Server-Sent Events (SSE)",
+)
+def post_chat_stream(req: ChatRequest):
+    return StreamingResponse(
+        chat_service.stream_chat(req),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+

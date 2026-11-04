@@ -31,5 +31,10 @@ seaborn>=0.12
 # Testing
 pytest>=7.0
 
+# Vector Search & RAG
+faiss-cpu>=1.7.4
+torch>=2.0.0
+transformers>=4.30.0
+
 # Optimization (optional)
 optuna>=3.3

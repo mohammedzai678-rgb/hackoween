@@ -214,6 +214,80 @@ class TestPredictValidateSubmissionAndDocs:
         after_mtime = PREDICTIONS_PATH.stat().st_mtime if PREDICTIONS_PATH.exists() else None
         assert before_mtime == after_mtime
 
+    def test_ml_ensemble_no_fallback_and_monotonicity(self):
+        """Verify 4-branch LightGBM ML ensemble executes with zero fallback and strict monotonicity."""
+        from backend.app.services.data_service import data_service
+
+        rain_levels = [0.0, 20.0, 64.0, 120.0]
+        q_by_rain = []
+        for rain in rain_levels:
+            resp = client.post(
+                "/api/v1/predict",
+                json={
+                    "run_id": "run_final_ensemble",
+                    "rows": [
+                        {
+                            "station_id": "07010000",
+                            "date": "2022-05-03",
+                            "precipitation_mm": rain,
+                            "soil_moisture": 0.237 if rain <= 20.0 else 0.55,
+                        }
+                    ],
+                },
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["model_used"] == (
+                "FLOODCAST 4-Branch LightGBM ML Ensemble (Scaled + Log1p Duan + Raw L2 + Monotonic Storm GBDT)"
+            )
+            pred = body["predictions"][0]
+            assert pred["precipitation_mm"] == rain
+            q_by_rain.append(pred["discharge_cfs"])
+            if rain == 20.0:
+                assert pred["is_extreme_p90"] is False
+            if rain == 120.0:
+                assert pred["is_extreme_p90"] is True
+
+        # Strict rainfall monotonicity: 0 mm < 20 mm < 64 mm < 120 mm
+        assert q_by_rain[0] < q_by_rain[1] < q_by_rain[2] < q_by_rain[3]
+
+        # Verify all 7 ML models (5 LightGBM boosters + XGBoost + CatBoost) are cached in memory
+        assert hasattr(data_service, "_ml_bundle_cache") and data_service._ml_bundle_cache is not None
+        models = data_service._ml_bundle_cache["models"]
+        assert set(models.keys()) == {"raw", "scaled", "log1p", "storm", "peak_weighted", "xgboost", "catboost"}
+
+        # Verify model selection produces distinct predictions across different model families
+        preds_by_model = {}
+        for rid in [
+            "run_final_ensemble",
+            "run_xgboost",
+            "run_catboost",
+            "run_flood_peak_weighted",
+            "run_target_scaled",
+            "run_target_log1p_smearing",
+            "run_target_raw",
+        ]:
+            m_resp = client.post(
+                "/api/v1/predict",
+                json={
+                    "run_id": rid,
+                    "rows": [
+                        {
+                            "station_id": "07010000",
+                            "date": "2022-05-03",
+                            "precipitation_mm": 45.0,
+                            "soil_moisture": 0.48,
+                        }
+                    ],
+                },
+            )
+            assert m_resp.status_code == 200
+            m_body = m_resp.json()
+            assert m_body["run_id"] == rid
+            preds_by_model[rid] = m_body["predictions"][0]["discharge_cfs"]
+
+        assert len(set(preds_by_model.values())) >= 5
+
     def test_predict_csv_upload(self):
         csv_text = (
             "station_id,date,precipitation_mm,temp_max_c,temp_min_c,soil_moisture\n"

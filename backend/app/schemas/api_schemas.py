@@ -271,3 +271,141 @@ class DocContentResponse(BaseModel):
     path: str
     content: str
     updated_at: str = ""
+
+
+class SimulationSaveRequest(BaseModel):
+    """Request payload to store a simulation & its predictions into the SQLite Vault & FAISS Vector DB."""
+
+    model_config = ConfigDict(extra="allow")
+
+    title: str
+    source: str = "predict"  # "predict" or "map"
+    run_id: str = "run_final_ensemble"
+    model_used: str = ""
+    station_id: str = "01646500"
+    station_name: str = ""
+    storm_peak_mm: float = 0.0
+    soil_moisture: float = 0.35
+    storm_radius_km: Optional[float] = None
+    notes: str = ""
+    predictions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class SimulationRecord(BaseModel):
+    """Stored simulation & prediction record from SQLite Vault."""
+
+    model_config = ConfigDict(extra="allow")
+
+    sim_id: str
+    created_at: str
+    title: str
+    source: str
+    run_id: str
+    model_used: str
+    station_id: str
+    station_name: str
+    storm_peak_mm: float
+    soil_moisture: float
+    storm_radius_km: Optional[float] = None
+    peak_discharge_cfs: float
+    mean_discharge_cfs: float
+    min_discharge_cfs: float
+    p90_exceedance_count: int
+    row_count: int
+    notes: str = ""
+    predictions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class RagDocumentIngestRequest(BaseModel):
+    """Request to ingest custom hydrological data/notes into the FAISS Vector Database."""
+
+    model_config = ConfigDict(extra="allow")
+
+    title: str
+    category: str = "custom_note"
+    station_id: Optional[str] = None
+    content: str
+
+
+class RagChunkMatch(BaseModel):
+    """Single retrieved vector chunk from FAISS IndexFlatIP."""
+
+    model_config = ConfigDict(extra="allow")
+
+    doc_id: str
+    title: str
+    category: str
+    similarity_score: float
+    content: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RagQueryRequest(BaseModel):
+    """Query request against the FAISS Vector Database + RAG synthesis engine."""
+
+    model_config = ConfigDict(extra="allow")
+
+    query: str
+    top_k: int = 5
+    category_filter: Optional[str] = None
+
+
+class RagQueryResponse(BaseModel):
+    """Grounded RAG answer with retrieved FAISS vector chunks and similarity scores."""
+
+    model_config = ConfigDict(extra="allow")
+
+    query: str
+    answer: str
+    embedding_engine: str
+    vector_index_type: str
+    total_vectors_searched: int
+    retrieved_chunks: List[RagChunkMatch]
+
+
+class RagStatsResponse(BaseModel):
+    """Statistics for the FAISS Vector Database and Stored Simulations Vault."""
+
+    model_config = ConfigDict(extra="allow")
+
+    vector_db_engine: str
+    embedding_model: str
+    vector_dimension: int
+    total_vectors: int
+    saved_simulations_count: int
+    categories_breakdown: Dict[str, int]
+    index_path: str
+
+
+class ChatMessage(BaseModel):
+    """Single chat turn in conversation history."""
+
+    model_config = ConfigDict(extra="allow")
+
+    role: str = Field(..., description="user, assistant, or system")
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """User prompt and context settings for the local RAG chatbot."""
+
+    model_config = ConfigDict(extra="allow")
+
+    message: str
+    history: List[ChatMessage] = Field(default_factory=list)
+    model: Optional[str] = "qwen2.5:1.5b"
+    use_rag: bool = True
+    temperature: float = 0.7
+
+
+class ChatResponse(BaseModel):
+    """Complete assistant answer with RAG citations and metadata."""
+
+    model_config = ConfigDict(extra="allow")
+
+    reply: str
+    citations: List[RagChunkMatch] = Field(default_factory=list)
+    model: str
+    sources_used: bool = False
+
+

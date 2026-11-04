@@ -29,6 +29,7 @@ from backend.app.core.config import (
 )
 from backend.app.routers.v1 import router as v1_router
 from backend.app.schemas.api_schemas import HealthResponse
+from backend.app.services.data_service import data_service
 
 # Structured logging configuration
 logging.basicConfig(
@@ -167,3 +168,33 @@ def health_check() -> HealthResponse:
 
 
 app.include_router(v1_router, prefix=API_V1_PREFIX)
+
+
+@app.on_event("startup")
+def warm_ml_models_on_startup() -> None:
+    """Pre-warm all trained ML models (LightGBM, XGBoost, CatBoost) on startup."""
+    try:
+        data_service.predict_rows(
+            rows=[
+                {
+                    "station_id": "01646500",
+                    "date": "2022-05-01",
+                    "precipitation_mm": 4.2,
+                    "temp_max_c": 19.5,
+                    "temp_min_c": 8.4,
+                    "soil_moisture": 0.34,
+                }
+            ],
+            run_id="run_final_ensemble",
+        )
+        logger.info("Pre-warmed all 7 trained ML models in memory.")
+    except Exception as exc:
+        logger.warning("Startup ML model pre-warm warning: %s", exc)
+
+    try:
+        from backend.app.services.rag_service import rag_service
+        rag_service._ensure_initialized()
+        logger.info("Pre-warmed FAISS Vector DB and Hydrological Transformer Embedder.")
+    except Exception as exc:
+        logger.warning("Startup RAG service pre-warm warning: %s", exc)
+

@@ -1,56 +1,61 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import ProblemStatementNote from "@/components/ProblemStatementNote";
 import {
   fetchHealth,
   fetchRuns,
   fetchStations,
-  fetchSubmissionStatus,
   HealthResponse,
   RunSummary,
   StationSummary,
-  SubmissionStatusResponse,
 } from "@/lib/api";
 import {
+  useRole,
+  ROLE_CONFIG,
+  UserRole,
+} from "@/components/RoleProvider";
+import {
   Waves,
-  ArrowRight,
-  ShieldCheck,
   Activity,
-  Database,
   MapPin,
-  Layers,
+  Globe,
+  Database,
   Cpu,
-  Flame,
-  CheckCircle2,
   Play,
-  FileText,
-  AlertTriangle,
-  Sparkles,
+  ArrowRight,
+  CheckCircle2,
+  TrendingDown,
+  BarChart3,
+  Zap,
+  Terminal,
+  Shield,
+  Droplets,
+  Clock,
 } from "lucide-react";
+
+const ROLE_ORDER: UserRole[] = ["admin", "forecaster", "ml_engineer"];
 
 export default function HomePage() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [stations, setStations] = useState<StationSummary[]>([]);
-  const [subStatus, setSubStatus] = useState<SubmissionStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const { role, setRole, roleInfo, canAccess } = useRole();
 
   useEffect(() => {
     let mounted = true;
     Promise.all([
-      fetchHealth(),
-      fetchRuns(),
-      fetchStations(),
-      fetchSubmissionStatus(),
+      fetchHealth().catch(() => null),
+      fetchRuns().catch(() => [] as RunSummary[]),
+      fetchStations().catch(() => [] as StationSummary[]),
     ])
-      .then(([h, r, s, sub]) => {
+      .then(([h, r, s]) => {
         if (!mounted) return;
         setHealth(h);
         setRuns(r);
         setStations(s);
-        setSubStatus(sub);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -60,446 +65,451 @@ export default function HomePage() {
     };
   }, []);
 
-  const bestRun = runs[0];
+  const bestRun = runs.length > 0 ? runs[0] : null;
+  const isOnline = health?.status === "ok" || health?.status === "healthy";
+  const topStations = stations.slice(0, 4);
+
+  const allQuickActions = [
+    {
+      href: "/today",
+      icon: <Clock className="h-5 w-5" />,
+      title: "Today's Forecast",
+      description:
+        "Real-time current day discharge predictions, basin flood stages, and surge risks across all 32 USGS gauges.",
+    },
+    {
+      href: "/map",
+      icon: <Globe className="h-5 w-5" />,
+      title: "Storm Map",
+      description:
+        "Interactive spatial map to place future storms and predict flood surges across all USGS gauges.",
+    },
+    {
+      href: "/predict",
+      icon: <Play className="h-5 w-5" />,
+      title: "Predict",
+      description:
+        "Simulate multi-day storm events or upload batch CSV rows with selectable ML models.",
+    },
+    {
+      href: "/vault",
+      icon: <Database className="h-5 w-5" />,
+      title: "Vault & RAG",
+      description:
+        "Store predictions, compare multi-simulation hydrographs, and query the FAISS + Transformer Vector DB.",
+    },
+    {
+      href: "/stations",
+      icon: <MapPin className="h-5 w-5" />,
+      title: "Stations",
+      description:
+        "Browse 32 monitored USGS river gauge basins with live hydrographs and flow statistics.",
+    },
+    {
+      href: "/models",
+      icon: <Cpu className="h-5 w-5" />,
+      title: "Models",
+      description:
+        "Compare Ensemble, XGBoost, CatBoost, and LightGBM models across evaluation metrics.",
+    },
+    {
+      href: "/train",
+      icon: <Terminal className="h-5 w-5" />,
+      title: "Train",
+      description:
+        "Configure hyperparameters and launch gated training runs with live log streaming.",
+    },
+  ];
+
+  const visibleActions = allQuickActions.filter((card) => canAccess(card.href));
 
   return (
     <div className="space-y-8">
-      <ProblemStatementNote
-        section="Overview & Evaluation Criteria"
-        requirementIds={["PSA-1..4", "EC-1..7", "OP-1..9", "DQ-1..6"]}
-        summary="Predict continuous, non-negative daily river discharge (discharge_cfs) for each (station_id, date) in test.csv. Ranked by a weighted normalized Composite Score: 40% Overall RMSE + 30% Extreme RMSE (top 10% discharge days per station) + 20% MAE + 10% R²."
-        clauseQuote="FLOODCAST — Predict the Surge Before It Strikes. Your model must capture both normal baseflow and extreme flood peaks, and generalize across diverse river basins."
-      />
-
-      {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-950 to-sky-950/60 p-6 sm:p-10 shadow-[0_0_50px_rgba(14,165,233,0.12)]">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+      {/* ── Hero Section ── */}
+      <section className="relative overflow-hidden rounded-2xl border border-[var(--border-primary)] bg-gradient-to-br from-[var(--bg-card)] via-[var(--bg-card)] to-[var(--accent-light)] px-6 py-10 sm:px-10 sm:py-12">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 font-mono text-xs text-cyan-300">
-              <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-              <span>HYDROLOGICAL OBSERVATORY &amp; ML WORKBENCH · 24-HOUR HACKATHON</span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-light)] px-3.5 py-1 text-xs font-semibold text-[var(--accent)]">
+              <Waves className="h-3.5 w-3.5" />
+              Hydrological Forecasting &amp; Flood Intelligence
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-              Predict the{" "}
-              <span className="bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 bg-clip-text text-transparent">
-                River Surge
-              </span>{" "}
-              Before It Strikes.
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--text-primary)]">
+              FLOODCAST
             </h1>
 
-            <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
-              End-to-end zero-leakage hydrological forecasting system fusing{" "}
-              <strong className="text-cyan-300 font-semibold">USGS NWIS 00060</strong> daily
-              discharge,{" "}
-              <strong className="text-sky-300 font-semibold">Open-Meteo</strong> atmospheric
-              reanalysis, and{" "}
-              <strong className="text-emerald-300 font-semibold">
-                StreamStats / GAGES-II
-              </strong>{" "}
-              catchment geomorphology across{" "}
-              <span className="font-mono text-white font-semibold">
-                {stations.length || 32} US river basins
-              </span>
-              .
+            <p className="text-base text-[var(--text-secondary)] leading-relaxed">
+              Predict daily river discharge across 32 diverse USGS watersheds before the surge strikes. Powered by multi-objective gradient boosting and physical catchment features.
             </p>
-
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Link
-                href="/predict"
-                className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-5 py-2.5 font-mono text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.4)] transition hover:bg-cyan-400"
-              >
-                <Play className="h-4 w-4 fill-current" />
-                <span>Run Live Inference</span>
-              </Link>
-              <Link
-                href="/stations"
-                className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-slate-900/80 px-4 py-2.5 font-mono text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/15"
-              >
-                <MapPin className="h-4 w-4" />
-                <span>Explore 32 USGS Stations</span>
-              </Link>
-              <Link
-                href="/submission"
-                className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 font-mono text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Submission Validator (PASS)</span>
-              </Link>
-            </div>
           </div>
 
-          {/* Live Telemetry Card */}
-          <div className="w-full lg:w-80 shrink-0 rounded-xl border border-slate-800 bg-slate-950/90 p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <span className="font-mono text-xs uppercase tracking-wider text-slate-400">
-                Pipeline Telemetry
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-400 border border-emerald-500/30">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                {health?.status?.toUpperCase() || "OPERATIONAL"}
-              </span>
-            </div>
-
-            <div className="space-y-2.5 font-mono text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Discharge CUTOFF:</span>
-                <span className="text-cyan-300 font-semibold">
-                  {health?.cutoff_date || "2022-12-31"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Active Stations:</span>
-                <span className="text-slate-100">
-                  {stations.length || 32} (5 Starter + 27 Added)
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Engineered Features:</span>
-                <span className="text-slate-100">64 (6 Families, Backward-Only)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Zero-Leakage Guard:</span>
-                <span className="text-emerald-400 font-semibold">VERIFIED (PASS)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">predictions.csv:</span>
-                <span className="text-emerald-400 font-semibold">
-                  {subStatus?.prediction_stats?.row_count?.toLocaleString("en-US") || "11,680"} rows ·
-                  0 neg
-                </span>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/map"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent-hover)]"
+            >
+              <Globe className="h-4 w-4" />
+              Open Storm Map
+            </Link>
+            <Link
+              href="/predict"
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] px-5 py-3 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)]"
+            >
+              <Play className="h-4 w-4 text-[var(--accent)] fill-current" />
+              Run Prediction
+            </Link>
+            {canAccess("/stations") && (
+              <Link
+                href="/stations"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] px-5 py-3 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)]"
+              >
+                <MapPin className="h-4 w-4 text-[var(--accent)]" />
+                Explore Stations
+              </Link>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Headline Evaluation Metrics (40 / 30 / 20 / 10 + Composite) */}
-      <section aria-label="Headline Evaluation Metrics">
-        <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Activity className="h-5 w-5 text-cyan-400" />
-            <span>Production Ensemble Headline Metrics</span>
-            <span className="font-mono text-xs text-slate-400 font-normal">
-              ({bestRun?.run_id || "run_008_ensemble_final"})
-            </span>
-          </h2>
-          <Link
-            href="/models"
-            className="text-xs font-mono text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1"
-          >
-            <span>Compare all {runs.length || 8} experiment runs</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+      {/* ── Role Workspace Switcher Banner ── */}
+      <section className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-light)] text-[var(--accent)]">
+              <Shield className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Active Workspace
+                </span>
+                <span className="rounded-full bg-[var(--accent-light)] px-2.5 py-0.5 text-xs font-semibold text-[var(--accent)]">
+                  {roleInfo.label}
+                </span>
+                <span className="rounded-md bg-[var(--bg-secondary)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                  {roleInfo.badge}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {roleInfo.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {ROLE_ORDER.map((rKey) => {
+              const cfg = ROLE_CONFIG[rKey];
+              const isSelected = role === rKey;
+              return (
+                <button
+                  key={rKey}
+                  type="button"
+                  onClick={() => setRole(rKey)}
+                  className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition-all ${
+                    isSelected
+                      ? "bg-[var(--accent)] text-white shadow-sm"
+                      : "border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Key Metrics Row ── */}
+      <section>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-[var(--accent)]" />
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">
+              Best Model Performance
+            </h2>
+            {bestRun && (
+              <span className="ml-1 rounded-md bg-[var(--bg-secondary)] px-2.5 py-0.5 font-mono text-xs text-[var(--text-secondary)]">
+                {bestRun.run_id}
+              </span>
+            )}
+          </div>
+
+          {bestRun && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/40 bg-[var(--accent-light)] px-3.5 py-1 text-xs font-semibold text-[var(--accent)]">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Composite Score: {bestRun.composite_score.toFixed(1)} / 100</span>
+            </div>
+          )}
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {[1, 2, 3, 4, 5].map((n) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="h-32 animate-pulse rounded-xl border border-slate-800 bg-slate-900/60 p-4"
+                className="h-28 animate-pulse rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)]"
               />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* RMSE (40%) */}
-            <div className="rounded-xl border border-cyan-500/30 bg-slate-900/80 p-4 shadow-sm">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">OVERALL RMSE</span>
-                <span className="rounded bg-cyan-500/20 px-2 py-0.5 text-cyan-300 font-bold border border-cyan-400/30">
-                  40% Weight
-                </span>
-              </div>
-              <p className="mt-3 font-mono text-2xl font-extrabold text-white">
-                {(bestRun?.rmse ?? 14420.6).toLocaleString("en-US")}{" "}
-                <span className="text-xs font-normal text-slate-400">cfs</span>
-              </p>
-              <p className="mt-1 text-[11px] text-emerald-400 font-mono">
-                ↓ 46.3% vs Raw-8-col baseline
-              </p>
-            </div>
-
-            {/* Extreme RMSE (30%) */}
-            <div className="rounded-xl border border-amber-500/40 bg-gradient-to-b from-amber-950/25 to-slate-900/80 p-4 shadow-sm">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-amber-300 flex items-center gap-1">
-                  <Flame className="h-3.5 w-3.5 text-amber-400" />
-                  EXTREME RMSE
-                </span>
-                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300 font-bold border border-amber-400/30">
-                  30% Weight
-                </span>
-              </div>
-              <p className="mt-3 font-mono text-2xl font-extrabold text-amber-200">
-                {(bestRun?.extreme_rmse ?? 32940.2).toLocaleString("en-US")}{" "}
-                <span className="text-xs font-normal text-amber-300/70">cfs</span>
-              </p>
-              <p className="mt-1 text-[11px] text-amber-300/90 font-mono">
-                Top 10% discharge days per station
-              </p>
-            </div>
-
-            {/* MAE (20%) */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">OVERALL MAE</span>
-                <span className="rounded bg-sky-500/20 px-2 py-0.5 text-sky-300 font-bold border border-sky-400/30">
-                  20% Weight
-                </span>
-              </div>
-              <p className="mt-3 font-mono text-2xl font-extrabold text-white">
-                {(bestRun?.mae ?? 4612.8).toLocaleString("en-US")}{" "}
-                <span className="text-xs font-normal text-slate-400">cfs</span>
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400 font-mono">
-                Log1p + Duan smearing stabilized
-              </p>
-            </div>
-
-            {/* R2 (10%) */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">R-SQUARED (R²)</span>
-                <span className="rounded bg-indigo-500/20 px-2 py-0.5 text-indigo-300 font-bold border border-indigo-400/30">
-                  10% Weight
-                </span>
-              </div>
-              <p className="mt-3 font-mono text-2xl font-extrabold text-white">
-                {(bestRun?.r2 ?? 0.9452).toFixed(4)}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400 font-mono">
-                94.5% variance explained across basins
-              </p>
-            </div>
-
-            {/* Composite Score */}
-            <div className="rounded-xl border border-emerald-500/40 bg-gradient-to-b from-emerald-950/30 to-slate-900/90 p-4 shadow-[0_0_25px_rgba(16,185,129,0.12)]">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-emerald-300 font-semibold">COMPOSITE SCORE</span>
-                <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-emerald-300 font-bold border border-emerald-400/30">
-                  0–100 Scale
-                </span>
-              </div>
-              <p className="mt-3 font-mono text-3xl font-extrabold text-emerald-400">
-                {(bestRun?.composite_score ?? 97.4).toFixed(1)}
-                <span className="text-sm font-normal text-emerald-300/70"> / 100</span>
-              </p>
-              <p className="mt-1 text-[11px] text-emerald-300/90 font-mono">
-                Rank #1 across all local runs
-              </p>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard
+              label="Overall RMSE"
+              value={formatNumber(bestRun?.rmse)}
+              unit="cfs"
+              icon={<TrendingDown className="h-4 w-4" />}
+              color="accent"
+            />
+            <MetricCard
+              label="Extreme RMSE (Top 10%)"
+              value={formatNumber(bestRun?.extreme_rmse)}
+              unit="cfs"
+              icon={<Zap className="h-4 w-4" />}
+              color="warning"
+            />
+            <MetricCard
+              label="MAE"
+              value={formatNumber(bestRun?.mae)}
+              unit="cfs"
+              icon={<BarChart3 className="h-4 w-4" />}
+              color="accent"
+            />
+            <MetricCard
+              label="R² Score"
+              value={bestRun?.r2 != null ? bestRun.r2.toFixed(4) : "—"}
+              icon={<Activity className="h-4 w-4" />}
+              color="success"
+              highlight
+            />
           </div>
         )}
       </section>
 
-      {/* End-to-End 7-Stage Pipeline Status */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-100">
-              7-Stage Reproducible Pipeline Architecture (`python solution.py`)
-            </h2>
-            <p className="text-xs text-slate-400">
-              Every module in `floodcast/` is deterministic, config-driven (`configs/base.yaml`),
-              and verified by unit tests (`tests/test_no_leakage.py`).
-            </p>
-          </div>
-          <span className="font-mono text-xs text-emerald-400 flex items-center gap-1.5">
-            <ShieldCheck className="h-4 w-4" />
-            All 7 stages verified
+      {/* ── System Status ── */}
+      <section className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          System Status
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+          <StatusItem
+            label="API Service"
+            value={isOnline ? "Online" : "Checking…"}
+            ok={isOnline}
+          />
+          <StatusItem
+            label="Active Stations"
+            value={stations.length > 0 ? `${stations.length} Gauges` : "—"}
+            ok={stations.length > 0}
+          />
+          <StatusItem
+            label="Trained Models"
+            value={runs.length > 0 ? `${runs.length} Available` : "—"}
+            ok={runs.length > 0}
+          />
+          <StatusItem
+            label="Predictions Pipeline"
+            value={health?.predictions_ready ? "Ready" : "Standby"}
+            ok={!!health?.predictions_ready}
+          />
+        </div>
+      </section>
+
+      {/* ── Quick Actions Grid ── */}
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+            Quick Actions ({roleInfo.label})
+          </h2>
+          <span className="text-xs text-[var(--text-muted)]">
+            {visibleActions.length} tools enabled for current role
           </span>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2.5">
-          {[
-            {
-              step: "01",
-              title: "Ingest & Cache",
-              module: "floodcast/ingest.py",
-              detail: "USGS 00060 + Open-Meteo + GAGES-II + SHA-256 manifest",
-              href: "/data",
-            },
-            {
-              step: "02",
-              title: "CUTOFF Guard",
-              module: "configs/base.yaml",
-              detail: "Target discharge strictly capped at 2022-12-31",
-              href: "/data",
-            },
-            {
-              step: "03",
-              title: "64 Features",
-              module: "floodcast/features.py",
-              detail: "Causal backward-only rolling, IIR decay & Curve-Number proxies",
-              href: "/features",
-            },
-            {
-              step: "04",
-              title: "Split & LOSO",
-              module: "floodcast/validate.py",
-              detail: "Forward-in-time + Leave-One-Station-Out unseen basin CV",
-              href: "/models",
-            },
-            {
-              step: "05",
-              title: "Training Gate",
-              module: "floodcast/train.py",
-              detail: "8-field Pre-Run Notice + Peak-Weighted LightGBM Ensemble",
-              href: "/train",
-            },
-            {
-              step: "06",
-              title: "4-Metric Scorer",
-              module: "floodcast/scoring.py",
-              detail: "40% RMSE + 30% Top-10% Peak RMSE + 20% MAE + 10% R²",
-              href: "/evaluate",
-            },
-            {
-              step: "07",
-              title: "Auto-Checker",
-              module: "check_submission.py",
-              detail: "9-point validation on predictions.csv (0 NaN, 0 neg)",
-              href: "/submission",
-            },
-          ].map((st) => (
-            <Link
-              key={st.step}
-              href={st.href}
-              className="group rounded-lg border border-slate-800 bg-slate-950/80 p-3.5 transition hover:border-cyan-500/50 hover:bg-slate-900"
-            >
-              <div className="flex items-center justify-between font-mono text-xs">
-                <span className="text-cyan-400 font-bold">STAGE {st.step}</span>
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              </div>
-              <p className="mt-1.5 font-semibold text-sm text-slate-100 group-hover:text-cyan-300">
-                {st.title}
-              </p>
-              <p className="mt-0.5 font-mono text-[10px] text-sky-400">{st.module}</p>
-              <p className="mt-1.5 text-[11px] text-slate-400 leading-snug">{st.detail}</p>
-            </Link>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {visibleActions.map((card) => (
+            <ActionCard
+              key={card.href}
+              href={card.href}
+              icon={card.icon}
+              title={card.title}
+              description={card.description}
+            />
           ))}
         </div>
       </section>
 
-      {/* Complete 12-Route Observatory Workbench Directory */}
-      <section>
-        <h2 className="mb-4 text-lg font-bold text-slate-100">
-          Observatory Workbench Modules (All 12 Specification Routes)
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            {
-              href: "/problem",
-              title: "1. Problem & Hydrological Physics",
-              badge: "PSA-1..4",
-              icon: Waves,
-              desc: "What discharge_cfs means, why rainfall-runoff is strongly nonlinear, hysteresis, snowmelt vs flash floods, and unseen-station generalization.",
-            },
-            {
-              href: "/data",
-              title: "2. Datasets, Join Schema & Provenance",
-              badge: "DS1–DS3 · IO-1..4",
-              icon: Database,
-              desc: "USGS NWIS 00060, Open-Meteo Archive, StreamStats/GAGES-II, interactive schema join diagram, SHA-256 manifest, and CUTOFF guard.",
-            },
-            {
-              href: "/stations",
-              title: "3. Interactive 32-Station US Observatory",
-              badge: "5 Starter + 27 Added",
-              icon: MapPin,
-              desc: "Interactive US coordinate map + station explorer with synchronized discharge hydrographs, inverted rainfall hyetographs, and catchment cards.",
-            },
-            {
-              href: "/features",
-              title: "4. 64-Feature Catalog & Ablations",
-              badge: "RA-4 · IQ-3",
-              icon: Layers,
-              desc: "Filterable catalog of all 64 backward-looking features across 6 families, LightGBM gain importances, and step-by-step ablation waterfall.",
-            },
-            {
-              href: "/models",
-              title: "5. Models, Target Strategies & Leaderboard",
-              badge: "EC-1..7",
-              icon: Cpu,
-              desc: "Compare Naive Climatology, Raw L2, Scaled Specific Discharge, Log1p + Duan Smearing, Tweedie, Peak-Weighted, and Final Blend.",
-            },
-            {
-              href: "/train",
-              title: "6. Interactive Training Gate Console",
-              badge: "Section 0A Gate",
-              icon: ShieldCheck,
-              desc: "Inspect all 8 mandatory Training Start Notice fields, check explicit gate confirmation, stream live logs, and review Training Result Notices.",
-            },
-            {
-              href: "/evaluate",
-              title: "7. Flood-Peak & Residual Diagnostics",
-              badge: "30% Peak Weight",
-              icon: Flame,
-              desc: "Predicted vs Actual hydrographs, top-10% flood peak under-prediction ratio, per-station metrics, and Top 50 Worst Validation Errors explorer.",
-            },
-            {
-              href: "/predict",
-              title: "8. Live Storm Simulator & Batch Predict",
-              badge: "OP-1..9",
-              icon: Play,
-              desc: "Select a station or upload test CSV rows, run live inference via POST /api/v1/predict, verify >= 0 clipping, and download predictions.csv.",
-            },
-            {
-              href: "/submission",
-              title: "9. Disqualification Guard & CSV Validator",
-              badge: "VR-1..5 · DQ-1..6",
-              icon: CheckCircle2,
-              desc: "Live 9-point CSV validator (POST /api/v1/validate), hard disqualification audit, and root deliverables verification (GET /api/v1/submission/status).",
-            },
-            {
-              href: "/docs",
-              title: "10. Live Documentation & Model Card Browser",
-              badge: "15 Docs + Model Card",
-              icon: FileText,
-              desc: "Read every Markdown engineering artifact in docs/, root README.md, and model_card.md directly inside the observatory.",
-            },
-            {
-              href: "/limitations",
-              title: "11. Known Limitations, Assumptions & Ethics",
-              badge: "DEC-001..007 · OQ-1..7",
-              icon: AlertTriangle,
-              desc: "Transparent analysis of rare extremes, unseen karst/dammed basins, daily mean vs peak ambiguity, provisional USGS flags, and flood warning ethics.",
-            },
-          ].map((card) => {
-            const Icon = card.icon;
-            return (
+      {/* ── Top Monitored Stations Preview ── */}
+      {topStations.length > 0 && (
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-[var(--accent)]" />
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">
+                Top Monitored Stations
+              </h2>
+            </div>
+            <Link
+              href="/stations"
+              className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent)] hover:underline"
+            >
+              View all {stations.length} stations
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {topStations.map((st) => (
               <Link
-                key={card.href}
-                href={card.href}
-                className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-cyan-500/50 hover:bg-slate-900 hover:shadow-[0_0_25px_rgba(34,211,238,0.1)]"
+                key={st.station_id}
+                href={`/stations/${st.station_id}`}
+                className="group flex flex-col justify-between rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-4 transition hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)]"
               >
                 <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <span className="rounded border border-slate-700 bg-slate-950 px-2 py-0.5 font-mono text-[11px] text-cyan-300">
-                      {card.badge}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-mono text-xs font-semibold text-[var(--accent)]">
+                      #{st.station_id}
+                    </span>
+                    <span className="rounded bg-[var(--bg-secondary)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                      {st.state}
                     </span>
                   </div>
-                  <h3 className="mt-3.5 text-base font-bold text-slate-100 group-hover:text-cyan-300 transition">
-                    {card.title}
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-1 group-hover:text-[var(--accent)] transition-colors">
+                    {st.station_name}
                   </h3>
-                  <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
-                    {card.desc}
+                  <p className="mt-1 flex items-center gap-1 text-xs text-[var(--text-muted)]">
+                    <Droplets className="h-3 w-3 text-[var(--accent)]" />
+                    {st.river_name}
                   </p>
                 </div>
-                <div className="mt-4 flex items-center gap-1 font-mono text-xs text-cyan-400 group-hover:translate-x-1 transition-transform">
-                  <span>Open workbench</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
+
+                <div className="mt-4 pt-3 border-t border-[var(--border-primary)] flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-[var(--text-muted)]">Mean Flow: </span>
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      {st.mean_discharge_cfs.toLocaleString("en-US")} cfs
+                    </span>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-[var(--text-muted)] group-hover:text-[var(--accent)] group-hover:translate-x-0.5 transition-all" />
                 </div>
               </Link>
-            );
-          })}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
+}
+
+/* ── Helper Components ── */
+
+function MetricCard({
+  label,
+  value,
+  unit,
+  icon,
+  color,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  icon: React.ReactNode;
+  color: "accent" | "success" | "warning" | "danger";
+  highlight?: boolean;
+}) {
+  const colorVar = `var(--${color})`;
+  const lightVar = `var(--${color}-light)`;
+
+  return (
+    <div
+      className={`rounded-xl border p-5 transition ${
+        highlight
+          ? "border-[var(--accent)] bg-[var(--accent-light)]"
+          : "border-[var(--border-primary)] bg-[var(--bg-card)]"
+      }`}
+    >
+      <div className="flex items-center gap-2 text-[var(--text-muted)] mb-3">
+        <span
+          className="flex h-7 w-7 items-center justify-center rounded-lg"
+          style={{ backgroundColor: lightVar, color: colorVar }}
+        >
+          {icon}
+        </span>
+        <span className="text-xs font-medium uppercase tracking-wide">
+          {label}
+        </span>
+      </div>
+      <p className="text-2xl font-bold text-[var(--text-primary)]">
+        {value}
+        {unit && (
+          <span className="ml-1 text-sm font-normal text-[var(--text-muted)]">
+            {unit}
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function StatusItem({
+  label,
+  value,
+  ok,
+}: {
+  label: string;
+  value: string;
+  ok: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+          ok ? "bg-[var(--success)]" : "bg-[var(--text-muted)]"
+        }`}
+      />
+      <div>
+        <p className="text-xs text-[var(--text-muted)]">{label}</p>
+        <p className="text-sm font-semibold text-[var(--text-primary)]">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ActionCard({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5 transition hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-sm"
+    >
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-light)] text-[var(--accent)] mb-3.5">
+        {icon}
+      </div>
+      <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">
+        {title}
+      </h3>
+      <p className="text-sm text-[var(--text-secondary)] leading-relaxed flex-1">
+        {description}
+      </p>
+      <div className="mt-4 flex items-center gap-1 text-sm font-medium text-[var(--accent)] group-hover:translate-x-1 transition-transform">
+        Open
+        <ArrowRight className="h-4 w-4" />
+      </div>
+    </Link>
+  );
+}
+
+function formatNumber(val?: number): string {
+  if (val == null) return "—";
+  return val.toLocaleString("en-US", { maximumFractionDigits: 1 });
 }

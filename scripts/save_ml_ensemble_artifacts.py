@@ -70,8 +70,9 @@ def main() -> None:
     seed42_path = ARTIFACTS_DIR / "model_lgb_seed42.lgb"
     default_lgb_path = ARTIFACTS_DIR / "model.lgb"
     if seed42_path.exists():
-        shutil.copyfile(seed42_path, default_lgb_path)
-        print(f"  Copied {seed42_path.name} -> {default_lgb_path.name}")
+        if not default_lgb_path.exists():
+            shutil.copyfile(seed42_path, default_lgb_path)
+        print(f"  [SKIP] {seed42_path.name} and {default_lgb_path.name} already exist.")
     else:
         print("  Training model_lgb_seed42.lgb...")
         m_raw = lgb.train(
@@ -95,48 +96,57 @@ def main() -> None:
         m_raw.save_model(str(seed42_path))
         m_raw.save_model(str(default_lgb_path))
 
-    print("[2/4] Training Station-Scaled LightGBM (model_scaled.lgb)...")
-    m_scaled = lgb.train(
-        {
-            "objective": "regression",
-            "metric": "rmse",
-            "learning_rate": 0.03,
-            "num_leaves": 63,
-            "min_child_samples": 40,
-            "feature_fraction": 0.70,
-            "bagging_fraction": 0.80,
-            "bagging_freq": 1,
-            "lambda_l2": 5.0,
-            "seed": 42,
-            "n_jobs": -1,
-            "verbose": -1,
-        },
-        lgb.Dataset(X_tr, label=y_scaled, weight=scale_weights),
-        num_boost_round=550,
-    )
-    m_scaled.save_model(str(ARTIFACTS_DIR / "model_scaled.lgb"))
+    scaled_path = ARTIFACTS_DIR / "model_scaled.lgb"
+    if scaled_path.exists():
+        print(f"[2/7] [SKIP] {scaled_path.name} already exists.")
+    else:
+        print("[2/7] Training Station-Scaled LightGBM (model_scaled.lgb)...")
+        m_scaled = lgb.train(
+            {
+                "objective": "regression",
+                "metric": "rmse",
+                "learning_rate": 0.03,
+                "num_leaves": 63,
+                "min_child_samples": 40,
+                "feature_fraction": 0.70,
+                "bagging_fraction": 0.80,
+                "bagging_freq": 1,
+                "lambda_l2": 5.0,
+                "seed": 42,
+                "n_jobs": -1,
+                "verbose": -1,
+            },
+            lgb.Dataset(X_tr, label=y_scaled, weight=scale_weights),
+            num_boost_round=550,
+        )
+        m_scaled.save_model(str(scaled_path))
 
-    print("[3/4] Training Log1p LightGBM + Duan (1983) Nonparametric Smearing Estimator (model_log1p.lgb)...")
+    log1p_path = ARTIFACTS_DIR / "model_log1p.lgb"
     y_log = np.log1p(np.maximum(y_tr, 0.0))
-    m_log = lgb.train(
-        {
-            "objective": "regression",
-            "metric": "rmse",
-            "learning_rate": 0.03,
-            "num_leaves": 63,
-            "min_child_samples": 40,
-            "feature_fraction": 0.70,
-            "bagging_fraction": 0.80,
-            "bagging_freq": 1,
-            "lambda_l2": 5.0,
-            "seed": 42,
-            "n_jobs": -1,
-            "verbose": -1,
-        },
-        lgb.Dataset(X_tr, label=y_log),
-        num_boost_round=550,
-    )
-    m_log.save_model(str(ARTIFACTS_DIR / "model_log1p.lgb"))
+    if log1p_path.exists():
+        print(f"[3/7] [SKIP] {log1p_path.name} already exists.")
+        m_log = lgb.Booster(model_file=str(log1p_path))
+    else:
+        print("[3/7] Training Log1p LightGBM + Duan (1983) Nonparametric Smearing Estimator (model_log1p.lgb)...")
+        m_log = lgb.train(
+            {
+                "objective": "regression",
+                "metric": "rmse",
+                "learning_rate": 0.03,
+                "num_leaves": 63,
+                "min_child_samples": 40,
+                "feature_fraction": 0.70,
+                "bagging_fraction": 0.80,
+                "bagging_freq": 1,
+                "lambda_l2": 5.0,
+                "seed": 42,
+                "n_jobs": -1,
+                "verbose": -1,
+            },
+            lgb.Dataset(X_tr, label=y_log),
+            num_boost_round=550,
+        )
+        m_log.save_model(str(log1p_path))
 
     # Compute Duan (1983) smearing factor per station: CF_s = mean(exp(e_i))
     log_residuals = y_log - m_log.predict(X_tr)
@@ -146,67 +156,133 @@ def main() -> None:
     })
     duan_cf_map = smear_df.groupby("station_id")["exp_res"].mean().clip(lower=0.90, upper=1.25).to_dict()
 
-    print("[3.5/4] Training Physics-Constrained Monotonic Storm-Response LightGBM (model_storm_response.lgb)...")
-    # Short-window meteorological & catchment features with monotonic constraints (Ke et al. 2017 LightGBM)
-    storm_features = [
-        "precipitation_mm",
-        "rain_sum_2d",
-        "rain_sum_3d",
-        "rain_sum_7d",
-        "rain_sum_14d",
-        "rain_max_1d_in_3d",
-        "rain_max_1d_in_7d",
-        "rain_decayed_05",
-        "rain_decayed_055",
-        "rain_decayed_08",
-        "soil_moisture",
-        "soil_moisture_mean_7d",
-        "soil_x_rain",
-        "runoff_proxy",
-        "runoff_coeff_proxy",
-        "fast_runoff_depth",
-        "temp_max_c",
-        "temp_min_c",
-        "doy_sin",
-        "doy_cos",
-        "drainage_area_sqmi",
-        "slope_pct",
-        "forest_cover_pct",
-        "mean_elevation_ft",
-    ]
-    # Monotonic constraints: +1 for rainfall, decayed rain, soil moisture, and runoff proxies; 0 for static/temp/calendar
-    mono_constraints = [
-        1 if (f.startswith("rain_") or f == "precipitation_mm" or "soil" in f or "runoff" in f) else 0
-        for f in storm_features
-    ]
     st_meds = feat_df.groupby("station_id")["discharge_cfs"].median().clip(lower=1.0)
     st_p90s = feat_df.groupby("station_id")["discharge_cfs"].quantile(0.90).clip(lower=10.0)
     med_vec = feat_df["station_id"].map(st_meds).values
     p90_vec = feat_df["station_id"].map(st_p90s).values
-    surge_gap_vec = np.maximum(p90_vec - med_vec, med_vec * 0.85)
-    # Target is normalized station surge index: 0.0 = station median, 1.0 = station P90 flood threshold
-    y_storm_idx = np.clip((y_tr - med_vec * 0.45) / surge_gap_vec, 0.0, 4.5)
 
-    m_storm = lgb.train(
-        {
-            "objective": "regression",
-            "metric": "rmse",
-            "learning_rate": 0.03,
-            "num_leaves": 63,
-            "min_child_samples": 50,
-            "feature_fraction": 0.85,
-            "bagging_fraction": 0.85,
-            "bagging_freq": 1,
-            "lambda_l2": 8.0,
-            "monotone_constraints": mono_constraints,
-            "seed": 42,
-            "n_jobs": -1,
-            "verbose": -1,
-        },
-        lgb.Dataset(feat_df[storm_features], label=y_storm_idx, weight=scale_weights),
-        num_boost_round=450,
-    )
-    m_storm.save_model(str(ARTIFACTS_DIR / "model_storm_response.lgb"))
+    storm_path = ARTIFACTS_DIR / "model_storm_response.lgb"
+    if storm_path.exists():
+        print(f"[4/7] [SKIP] {storm_path.name} already exists.")
+    else:
+        print("[4/7] Training Physics-Constrained Monotonic Storm-Response LightGBM (model_storm_response.lgb)...")
+        storm_features = [
+            "precipitation_mm",
+            "rain_sum_2d",
+            "rain_sum_3d",
+            "rain_sum_7d",
+            "rain_sum_14d",
+            "rain_max_1d_in_3d",
+            "rain_max_1d_in_7d",
+            "rain_decayed_05",
+            "rain_decayed_055",
+            "rain_decayed_08",
+            "soil_moisture",
+            "soil_moisture_mean_7d",
+            "soil_x_rain",
+            "runoff_proxy",
+            "runoff_coeff_proxy",
+            "fast_runoff_depth",
+            "temp_max_c",
+            "temp_min_c",
+            "doy_sin",
+            "doy_cos",
+            "drainage_area_sqmi",
+            "slope_pct",
+            "forest_cover_pct",
+            "mean_elevation_ft",
+        ]
+        mono_constraints = [
+            1 if (f.startswith("rain_") or f == "precipitation_mm" or "soil" in f or "runoff" in f) else 0
+            for f in storm_features
+        ]
+        surge_gap_vec = np.maximum(p90_vec - med_vec, med_vec * 0.85)
+        y_storm_idx = np.clip((y_tr - med_vec * 0.45) / surge_gap_vec, 0.0, 4.5)
+
+        m_storm = lgb.train(
+            {
+                "objective": "regression",
+                "metric": "rmse",
+                "learning_rate": 0.03,
+                "num_leaves": 63,
+                "min_child_samples": 50,
+                "feature_fraction": 0.85,
+                "bagging_fraction": 0.85,
+                "bagging_freq": 1,
+                "lambda_l2": 8.0,
+                "monotone_constraints": mono_constraints,
+                "seed": 42,
+                "n_jobs": -1,
+                "verbose": -1,
+            },
+            lgb.Dataset(feat_df[storm_features], label=y_storm_idx, weight=scale_weights),
+            num_boost_round=450,
+        )
+        m_storm.save_model(str(storm_path))
+
+    peak_path = ARTIFACTS_DIR / "model_peak_weighted.lgb"
+    if peak_path.exists():
+        print(f"[5/7] [SKIP] {peak_path.name} already exists.")
+    else:
+        print("[5/7] Training Flood-Peak Weighted LightGBM (model_peak_weighted.lgb)...")
+        peak_weights = scale_weights * (1.0 + 3.0 * (y_tr >= p90_vec).astype(float))
+        m_peak = lgb.train(
+            {
+                "objective": "regression",
+                "metric": "rmse",
+                "learning_rate": 0.03,
+                "num_leaves": 63,
+                "min_child_samples": 40,
+                "feature_fraction": 0.70,
+                "bagging_fraction": 0.80,
+                "bagging_freq": 1,
+                "lambda_l2": 5.0,
+                "seed": 42,
+                "n_jobs": -1,
+                "verbose": -1,
+            },
+            lgb.Dataset(X_tr, label=y_scaled, weight=peak_weights),
+            num_boost_round=450,
+        )
+        m_peak.save_model(str(peak_path))
+
+    xgb_path = ARTIFACTS_DIR / "model_xgboost.json"
+    if xgb_path.exists():
+        print(f"[6/7] [SKIP] {xgb_path.name} already exists.")
+    else:
+        print("[6/7] Training Scale-Consistent XGBoost Regressor (model_xgboost.json)...")
+        import xgboost as xgb
+        m_xgb = xgb.XGBRegressor(
+            n_estimators=350,
+            max_depth=6,
+            learning_rate=0.04,
+            subsample=0.80,
+            colsample_bytree=0.70,
+            reg_lambda=5.0,
+            random_state=42,
+            n_jobs=-1,
+            tree_method="hist",
+        )
+        m_xgb.fit(X_tr, y_scaled, sample_weight=scale_weights)
+        m_xgb.save_model(str(xgb_path))
+
+    cb_path = ARTIFACTS_DIR / "model_catboost.cbm"
+    if cb_path.exists():
+        print(f"[7/7] [SKIP] {cb_path.name} already exists.")
+    else:
+        print("[7/7] Training Scale-Consistent CatBoost Regressor (model_catboost.cbm)...")
+        from catboost import CatBoostRegressor
+        m_cb = CatBoostRegressor(
+            iterations=450,
+            depth=6,
+            learning_rate=0.05,
+            l2_leaf_reg=5.0,
+            random_seed=42,
+            thread_count=-1,
+            verbose=False,
+        )
+        m_cb.fit(X_tr, y_scaled, sample_weight=scale_weights)
+        m_cb.save_model(str(cb_path))
 
     print("[4/4] Saving station hydrological priors & empirical runoff elasticity (station_priors.json)...")
     priors = {}
