@@ -1,0 +1,30 @@
+# Python byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Node / Next.js frontend build & dependencies
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+node_modules/
+
+# Temporary matplotlib, CatBoost, SQLite test logs & API cache
+artifacts/.mplconfig/
+artifacts/test_gate_confirmed_run/
+catboost_info/
+backend/floodcast_meta.db
+backend/logs/
+data/cache/
+data/raw/usgs/usgs_discharge_raw.csv
+data/raw/openmeteo/openmeteo_weather_raw.csv
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+*.swp

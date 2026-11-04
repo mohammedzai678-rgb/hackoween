@@ -1,0 +1,163 @@
+# FLOODCAST Configuration
+
+# ============================================================
+# CUTOFF: Last date allowed for discharge (target) data.
+# Auto-overridden by max(date) in train.csv if starter files exist.
+# Weather data may extend beyond this date (it is an input, not a label).
+# ============================================================
+cutoff_date: "2021-12-31"
+
+# ============================================================
+# Data sources
+# ============================================================
+data:
+  raw_dir: "data/raw"
+  cache_dir: "data/cache"
+  processed_dir: "data/processed"
+  starter_dir: "data/raw/starter"
+  manifest_path: "data/manifest.json"
+
+  usgs:
+    base_url: "https://waterservices.usgs.gov/nwis/dv/"
+    site_info_url: "https://waterservices.usgs.gov/nwis/site/"
+    parameter_cd: "00060"
+    start_date: "2010-01-01"
+    format: "json"
+    # Starter stations from the PDF
+    stations:
+      - "01646500"   # Potomac River, DC
+      - "07010000"   # Mississippi River, St. Louis
+      - "08158000"   # Colorado River, Austin TX
+      - "02087500"   # Neuse River, NC
+      - "11447650"   # Sacramento River, CA
+      # Additional stations for diversity (small/medium/large basins, varied climates)
+      - "01010000"   # St. John River, ME (snowmelt)
+      - "01047000"   # Kennebec River, ME
+      - "01184000"   # Connecticut River, CT
+      - "01463500"   # Delaware River, Trenton NJ
+      - "02037500"   # James River, VA
+      - "02085070"   # Eno River, NC (small basin)
+      - "02146000"   # Catawba River, SC
+      - "02175000"   # Edisto River, SC (coastal plain)
+      - "02298830"   # Myakka River, FL
+      - "02321500"   # Santa Fe River, FL
+      - "03254520"   # Ohio River, Cincinnati (large)
+      - "03339000"   # Wabash River, IN
+      - "03612500"   # Ohio River, Metropolis IL
+      - "05587450"   # Mississippi River, Grafton IL
+      - "06054500"   # Missouri River, MT (snowmelt)
+      - "06610000"   # Missouri River, Omaha NE
+      - "06807000"   # Nishnabotna River, IA (small ag basin)
+      - "07032000"   # Mississippi River, Memphis TN
+      - "07261000"   # Arkansas River, AR
+      - "08070000"   # San Jacinto River, TX
+      - "08082000"   # Salt Fork Brazos River, TX (arid)
+      - "09380000"   # Colorado River, Lees Ferry AZ (arid)
+      - "10128500"   # Weber River, UT (snowmelt)
+      - "11303500"   # San Joaquin River, CA
+      - "12354500"   # Clark Fork River, MT
+      - "14211720"   # Willamette River, Portland OR
+      - "12413000"   # Coeur d'Alene River, ID
+
+    completeness_threshold: 0.80  # Drop stations below this % complete
+
+  openmeteo:
+    base_url: "https://archive-api.open-meteo.com/v1/archive"
+    daily_vars: "precipitation_sum,temperature_2m_max,temperature_2m_min,soil_moisture_0_to_7cm"
+    rate_limit_sleep: 0.5   # seconds between requests
+    max_retries: 3
+    backoff_factor: 2.0
+
+  streamstats:
+    base_url: "https://streamstats.usgs.gov/streamstatsservices/"
+    characteristics:
+      - "DRNAREA"      # drainage area (sq mi)
+      - "ELEV"         # mean elevation (ft)
+      - "SLOPE_PCT"    # mean slope (%)
+      - "FOREST"       # forest cover (%)
+    fallback: "gagesii"  # if StreamStats is unreliable
+
+# ============================================================
+# Feature families (toggleable)
+# ============================================================
+features:
+  rainfall:
+    enabled: true
+    rolling_windows: [1, 2, 3, 7, 14, 30, 60]
+    max_rain_windows: [3, 7, 14]
+    wet_day_thresholds_mm: [1, 5]
+    wet_day_windows: [7, 14, 30]
+    days_since_rain_mm: [5, 10, 25]
+    percentile_threshold: 0.95
+
+  antecedent:
+    enabled: true
+    decay_constants: [0.5, 0.8, 0.95]  # fast, medium, slow
+
+  soil:
+    enabled: true
+    lag_days: [1, 3, 7]
+
+  temperature:
+    enabled: true
+    snow_threshold_c: 1.0
+    degree_day_windows: [7, 14, 30]
+
+  calendar:
+    enabled: true
+    # sin/cos encoding of day_of_year, month, water_year_day
+
+  static:
+    enabled: true
+    # log_drainage_area, area x rain, slope x rain, etc.
+
+  station_stats:
+    enabled: true   # Enabled because all 32 test stations appear in train.csv
+    percentiles: [0.75, 0.90, 0.99]
+
+  cross_station:
+    enabled: true   # Regional and HUC-basin synoptic weather features
+
+# ============================================================
+# Model configuration
+# ============================================================
+model:
+  type: "lightgbm"
+  objective: "regression"
+  metric: "rmse"
+  learning_rate: 0.03
+  num_leaves: 63
+  min_child_samples: 40
+  feature_fraction: 0.7
+  bagging_fraction: 0.8
+  bagging_freq: 1
+  lambda_l2: 5.0
+  n_estimators: 5000
+  early_stopping_rounds: 200
+  seed: 42
+  n_jobs: -1
+
+  target_strategy: "raw"  # raw | scaled | log1p | tweedie
+
+# ============================================================
+# Validation
+# ============================================================
+validation:
+  scheme: "forward_time"
+  val_years: 1            # Number of years to hold out for validation
+  expanding_window_folds: 3
+  leave_one_station_out: true
+
+# ============================================================
+# Paths
+# ============================================================
+output:
+  predictions_path: "predictions.csv"
+  runs_log: "experiments/runs.jsonl"
+  ablations_log: "experiments/ablations.csv"
+  artifacts_dir: "artifacts"
+
+# ============================================================
+# Reproducibility
+# ============================================================
+seed: 42

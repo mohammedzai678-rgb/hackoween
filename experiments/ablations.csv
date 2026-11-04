@@ -1,0 +1,10 @@
+step,family_added,n_features,rmse,extreme_rmse,mae,r2,composite,delta_rmse,delta_extreme_rmse,kept,notes
+0,raw_only,8,22341.62,44819.27,11182.37,0.771,49.62,0.0,0.0,True,8 raw weather + static columns
+1,+rainfall,43,22372.18,42459.22,11875.16,0.7704,50.28,30.56,-2360.05,True,"Rolling rainfall sums (1-365d), volumetric area*rain, anomaly ratios, max 1d, wet streaks, intensity"
+2,+antecedent,49,22253.45,44351.56,12146.12,0.7728,48.6,-118.72,1892.33,True,"Exponentially decayed API (alpha=0.5, 0.55, 0.8, 0.95, 0.985) & concentration time"
+3,+soil,64,20213.77,40783.04,11161.74,0.8126,58.48,-2039.68,-3568.52,True,"Soil moisture lags, deltas, expanding pct, SCS runoff proxy, fast/slow depth"
+4,+temperature,78,18316.13,36148.63,10391.15,0.8461,68.4,-1897.64,-4634.42,True,"Snow/liquid split, rain-on-snow, degree-days, Hargreaves ET, spring snowmelt"
+5,+calendar,82,18095.27,35223.26,10414.52,0.8498,69.67,-220.85,-925.37,True,"Cyclical DOY sin/cos, month, water year day"
+6,+static,90,18021.3,35692.05,10299.0,0.851,69.67,-73.98,468.8,True,"Log drainage area, area*rain, slope*rain, conceptual two-store basin routing"
+7,+station_stats,116,19043.05,37036.77,10276.04,0.8336,66.02,1021.75,1344.72,True,"Pre-cutoff station discharge quantiles, monthly climatology & calibrated water balance"
+8,+cross_station,127,16224.48,33542.97,8536.07,0.8792,78.92,-2818.57,-3493.8,True,Concurrent regional & HUC-2 synoptic rainfall and soil moisture context

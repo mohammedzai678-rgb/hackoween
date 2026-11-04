@@ -1,0 +1,128 @@
+feature_name,family,data_type,lookback_window,description,hydrological_rationale,leakage_free
+precipitation_mm,raw_weather,float64,1d (day t),Daily total precipitation (mm) from Open-Meteo,Primary rainfall forcing driving surface runoff and streamflow,True
+temp_max_c,raw_weather,float64,1d (day t),Daily maximum air temperature at 2m (C),"Controls snowmelt, evapotranspiration, and convective storm potential",True
+temp_min_c,raw_weather,float64,1d (day t),Daily minimum air temperature at 2m (C),"Indicates freezing conditions, snow accumulation, and frost depth",True
+soil_moisture,raw_weather,float64,1d (day t),"Top-layer volumetric soil moisture (0-7cm, m3/m3)",Direct indicator of catchment antecedent wetness and infiltration capacity,True
+drainage_area_sqmi,raw_static,float64,static,Watershed contributing drainage area (sq miles),First-order physical control on total discharge volume and routing lag,True
+mean_elevation_ft,raw_static,int64,static,Mean basin elevation above sea level (ft),Controls orographic precipitation and snowpack accumulation regime,True
+slope_pct,raw_static,float64,static,Mean watershed terrain slope (%),"Governs overland flow velocity, runoff ratio, and hydrograph flashiness",True
+forest_cover_pct,raw_static,float64,static,Basin forest canopy cover percentage (%),"Modulates canopy interception, evapotranspiration, and soil infiltration",True
+rain_sum_1d,rainfall,float64,1d,Backward-looking 1d cumulative precipitation sum (mm),Captures 1d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_2d,rainfall,float64,2d,Backward-looking 2d cumulative precipitation sum (mm),Captures 2d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_3d,rainfall,float64,3d,Backward-looking 3d cumulative precipitation sum (mm),Captures 3d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_7d,rainfall,float64,7d,Backward-looking 7d cumulative precipitation sum (mm),Captures 7d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_14d,rainfall,float64,14d,Backward-looking 14d cumulative precipitation sum (mm),Captures 14d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_30d,rainfall,float64,30d,Backward-looking 30d cumulative precipitation sum (mm),Captures 30d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_60d,rainfall,float64,60d,Backward-looking 60d cumulative precipitation sum (mm),Captures 60d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_90d,rainfall,float64,90d,Backward-looking 90d cumulative precipitation sum (mm),Captures 90d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_180d,rainfall,float64,180d,Backward-looking 180d cumulative precipitation sum (mm),Captures 180d cumulative storm volume contributing to quickflow and interflow,True
+rain_sum_365d,rainfall,float64,365d,Backward-looking 365d cumulative precipitation sum (mm),Captures 365d cumulative storm volume contributing to quickflow and interflow,True
+rain_max_1d_in_3d,rainfall,float64,3d,Peak single-day rainfall within past 3d window (mm),Captures peak storm intensity over 3d that triggers infiltration-excess overland flow,True
+rain_max_1d_in_7d,rainfall,float64,7d,Peak single-day rainfall within past 7d window (mm),Captures peak storm intensity over 7d that triggers infiltration-excess overland flow,True
+rain_max_1d_in_14d,rainfall,float64,14d,Peak single-day rainfall within past 14d window (mm),Captures peak storm intensity over 14d that triggers infiltration-excess overland flow,True
+wet_days_gt1mm_7d,rainfall,float64,7d,Count of wet days exceeding 1mm in past 7d,Persistent wet spells saturate upper soil horizons and elevate baseflow,True
+wet_days_gt1mm_14d,rainfall,float64,14d,Count of wet days exceeding 1mm in past 14d,Persistent wet spells saturate upper soil horizons and elevate baseflow,True
+wet_days_gt1mm_30d,rainfall,float64,30d,Count of wet days exceeding 1mm in past 30d,Persistent wet spells saturate upper soil horizons and elevate baseflow,True
+wet_days_gt5mm_7d,rainfall,float64,7d,Count of wet days exceeding 5mm in past 7d,Persistent wet spells saturate upper soil horizons and elevate baseflow,True
+wet_days_gt5mm_14d,rainfall,float64,14d,Count of wet days exceeding 5mm in past 14d,Persistent wet spells saturate upper soil horizons and elevate baseflow,True
+wet_days_gt5mm_30d,rainfall,float64,30d,Count of wet days exceeding 5mm in past 30d,Persistent wet spells saturate upper soil horizons and elevate baseflow,True
+days_since_rain_5mm,rainfall,float64,expanding_past,Days elapsed since daily precipitation last exceeded 5mm,Measures catchment drying time and recession limb duration since last significant storm,True
+days_since_rain_10mm,rainfall,float64,expanding_past,Days elapsed since daily precipitation last exceeded 10mm,Measures catchment drying time and recession limb duration since last significant storm,True
+days_since_rain_25mm,rainfall,float64,expanding_past,Days elapsed since daily precipitation last exceeded 25mm,Measures catchment drying time and recession limb duration since last significant storm,True
+days_since_rain_p95,rainfall,float64,expanding_past,Days elapsed since daily precipitation last exceeded p95,Measures catchment drying time and recession limb duration since last significant storm,True
+wet_streak,rainfall,int64,expanding_past,Consecutive backward-looking days with precipitation > 1mm,Multi-day consecutive rainfall compounds soil saturation and flood peak risk,True
+rain_intensity_ratio_7d,rainfall,float64,7d,Ratio of peak 1-day rainfall to total 7d rainfall,Distinguishes concentrated cloudburst storms from uniform drizzle over the window,True
+rain_intensity_ratio_14d,rainfall,float64,14d,Ratio of peak 1-day rainfall to total 14d rainfall,Distinguishes concentrated cloudburst storms from uniform drizzle over the window,True
+rain_acceleration,rainfall,float64,6d,3-day rainfall sum minus prior 3-day rainfall sum (mm),Positive acceleration identifies the rising limb of an active synoptic storm event,True
+rain_anomaly_7d_vs_365d,rainfall,float64,7d_vs_365d,Ratio of backward 7d rainfall sum to station 365-day baseline rainfall rate,Captures multi-week/seasonal hydroclimatic wetness anomaly over 7d relative to local climate,True
+rain_anomaly_30d_vs_365d,rainfall,float64,30d_vs_365d,Ratio of backward 30d rainfall sum to station 365-day baseline rainfall rate,Captures multi-week/seasonal hydroclimatic wetness anomaly over 30d relative to local climate,True
+rain_anomaly_90d_vs_365d,rainfall,float64,90d_vs_365d,Ratio of backward 90d rainfall sum to station 365-day baseline rainfall rate,Captures multi-week/seasonal hydroclimatic wetness anomaly over 90d relative to local climate,True
+rain_vol_7d,rainfall,float64,7d,Volumetric basin precipitation input over 7d (rain_sum_7d * drainage_area_sqmi / 1000),First-order physical water volume delivered to watershed over 7d across 4 orders of basin area,True
+rain_vol_30d,rainfall,float64,30d,Volumetric basin precipitation input over 30d (rain_sum_30d * drainage_area_sqmi / 1000),First-order physical water volume delivered to watershed over 30d across 4 orders of basin area,True
+rain_vol_90d,rainfall,float64,90d,Volumetric basin precipitation input over 90d (rain_sum_90d * drainage_area_sqmi / 1000),First-order physical water volume delivered to watershed over 90d across 4 orders of basin area,True
+rain_vol_180d,rainfall,float64,180d,Volumetric basin precipitation input over 180d (rain_sum_180d * drainage_area_sqmi / 1000),First-order physical water volume delivered to watershed over 180d across 4 orders of basin area,True
+rain_vol_365d,rainfall,float64,365d,Volumetric basin precipitation input over 365d (rain_sum_365d * drainage_area_sqmi / 1000),First-order physical water volume delivered to watershed over 365d across 4 orders of basin area,True
+rain_decayed_05,antecedent,float64,IIR_decay_0.5,"Exponentially decayed Antecedent Precipitation Index (API, alpha=0.5)",Linear reservoir memory proxy with decay constant alpha=0.5 representing subsurface storage,True
+rain_decayed_055,antecedent,float64,IIR_decay_0.55,"Exponentially decayed Antecedent Precipitation Index (API, alpha=0.55)",Linear reservoir memory proxy with decay constant alpha=0.55 representing subsurface storage,True
+rain_decayed_08,antecedent,float64,IIR_decay_0.8,"Exponentially decayed Antecedent Precipitation Index (API, alpha=0.8)",Linear reservoir memory proxy with decay constant alpha=0.8 representing subsurface storage,True
+rain_decayed_095,antecedent,float64,IIR_decay_0.95,"Exponentially decayed Antecedent Precipitation Index (API, alpha=0.95)",Linear reservoir memory proxy with decay constant alpha=0.95 representing subsurface storage,True
+rain_decayed_0985,antecedent,float64,IIR_decay_0.985,"Exponentially decayed Antecedent Precipitation Index (API, alpha=0.985)",Linear reservoir memory proxy with decay constant alpha=0.985 representing subsurface storage,True
+time_of_concentration,antecedent,float64,static,Kirpich-style basin time of concentration proxy from area and slope,Estimates kinematic wave travel time from basin divide to gauge outlet,True
+soil_moisture_lag1,soil,float64,1d,Soil moisture lagged by 1d,Captures delayed subsurface percolation and pre-storm catchment wetness state,True
+soil_moisture_lag3,soil,float64,3d,Soil moisture lagged by 3d,Captures delayed subsurface percolation and pre-storm catchment wetness state,True
+soil_moisture_lag7,soil,float64,7d,Soil moisture lagged by 7d,Captures delayed subsurface percolation and pre-storm catchment wetness state,True
+soil_moisture_mean_7d,soil,float64,7d,7d backward rolling mean soil moisture,Smooths daily surface noise to represent 7d root-zone and subsurface wetness state,True
+soil_moisture_mean_30d,soil,float64,30d,30d backward rolling mean soil moisture,Smooths daily surface noise to represent 30d root-zone and subsurface wetness state,True
+soil_moisture_mean_90d,soil,float64,90d,90d backward rolling mean soil moisture,Smooths daily surface noise to represent 90d root-zone and subsurface wetness state,True
+soil_moisture_delta_1d,soil,float64,1d,Change in soil moisture over past 1d,Rapid soil wetting rate signals active infiltration and imminent saturation excess,True
+soil_moisture_delta_3d,soil,float64,3d,Change in soil moisture over past 3d,Rapid soil wetting rate signals active infiltration and imminent saturation excess,True
+soil_moisture_delta_7d,soil,float64,7d,Change in soil moisture over past 7d,Rapid soil wetting rate signals active infiltration and imminent saturation excess,True
+soil_moisture_pct,soil,float64,expanding_past,Per-station expanding percentile rank of soil moisture,Normalizes soil wetness relative to local soil porosity and climate regime,True
+soil_x_rain,soil,float64,1d,Interaction of daily soil moisture and daily precipitation,Nonlinear saturation-excess runoff generation when heavy rain falls on wet soil,True
+runoff_proxy,soil,float64,1d,SCS Curve-Number style nonlinear runoff depth proxy,Boosts effective rainfall when soil moisture exceeds its 70th percentile threshold,True
+runoff_coeff_proxy,soil,float64,1d,Estimated runoff coefficient from soil moisture and basin slope,Hydrological fraction of rainfall converted to quickflow vs infiltration,True
+fast_runoff_depth,soil,float64,IIR_decay_0.55,Fast linear reservoir routing of effective surface runoff depth (alpha=0.55),Simulates 1-3 day quickflow hydrograph response to effective rainfall,True
+slow_recharge_depth,soil,float64,IIR_decay_0.985,Slow linear reservoir routing of soil recharge depth (alpha=0.985),Simulates multi-month groundwater baseflow storage and slow recession,True
+temp_mean_c,temperature,float64,1d,Daily mean air temperature (0.5 * (tmax + tmin)) in Celsius,Governs phase of precipitation (rain vs snow) and thermal energy balance,True
+diurnal_range_c,temperature,float64,1d,Daily diurnal temperature range (tmax - tmin) in Celsius,"Proxy for cloud cover, solar radiation, and Hargreaves evapotranspiration",True
+rain_as_snow,temperature,float64,1d,Precipitation falling on days with mean temperature below 1C (mm),Precipitation stored as snowpack rather than immediately contributing to runoff,True
+rain_as_liquid,temperature,float64,1d,Effective liquid precipitation adjusted for freezing threshold (mm),Liquid water input immediately available for infiltration and overland runoff,True
+rain_on_snow,temperature,int64,1d,Binary indicator of warm rain (>5mm) during near-freezing transition (1-4C),Rain-on-snow events trigger rapid compound snowmelt + rainfall flood surges,True
+pos_degree_days_7d,temperature,float64,7d,Cumulative positive degree-days (>0C) over past 7d,Thermal energy index driving seasonal snowpack ablation and snowmelt runoff,True
+pos_degree_days_14d,temperature,float64,14d,Cumulative positive degree-days (>0C) over past 14d,Thermal energy index driving seasonal snowpack ablation and snowmelt runoff,True
+pos_degree_days_30d,temperature,float64,30d,Cumulative positive degree-days (>0C) over past 30d,Thermal energy index driving seasonal snowpack ablation and snowmelt runoff,True
+freeze_degree_days_7d,temperature,float64,7d,Cumulative freezing degree-days (<0C) over past 7d,Measures cold-season snowpack accumulation potential and frozen ground severity,True
+freeze_degree_days_14d,temperature,float64,14d,Cumulative freezing degree-days (<0C) over past 14d,Measures cold-season snowpack accumulation potential and frozen ground severity,True
+freeze_degree_days_30d,temperature,float64,30d,Cumulative freezing degree-days (<0C) over past 30d,Measures cold-season snowpack accumulation potential and frozen ground severity,True
+freeze_thaw_7d,temperature,float64,7d,Count of freeze-thaw days (tmin < 0C and tmax > 0C) in past 7 days,Indicates active diurnal snowmelt and frozen-soil permeability transitions,True
+et_proxy,temperature,float64,1d,Hargreaves-Samani potential evapotranspiration proxy (mm/day),Estimates atmospheric water demand depleting catchment soil moisture storage,True
+spring_snowmelt_dd,temperature,float64,1d,Spring window (DOY 60-200) degree-day snowmelt rate proxy,Captures spring freshet snowmelt pulse in northern and mountain watersheds,True
+doy_sin,calendar,float64,1d,Cyclical/seasonal calendar coordinate (doy_sin),Encodes smooth seasonal phase within the hydrological water year (starting Oct 1),True
+doy_cos,calendar,float64,1d,Cyclical/seasonal calendar coordinate (doy_cos),Encodes smooth seasonal phase within the hydrological water year (starting Oct 1),True
+month,calendar,int32,1d,Cyclical/seasonal calendar coordinate (month),Encodes smooth seasonal phase within the hydrological water year (starting Oct 1),True
+water_year_day,calendar,int64,1d,Cyclical/seasonal calendar coordinate (water_year_day),Encodes smooth seasonal phase within the hydrological water year (starting Oct 1),True
+log_drainage_area,static,float64,1d/static,Catchment physiographic interaction feature (log_drainage_area),"Scales meteorological forcing by watershed area, terrain slope, and land cover",True
+area_x_rain,static,float64,1d/static,Catchment physiographic interaction feature (area_x_rain),"Scales meteorological forcing by watershed area, terrain slope, and land cover",True
+slope_x_rain,static,float64,1d/static,Catchment physiographic interaction feature (slope_x_rain),"Scales meteorological forcing by watershed area, terrain slope, and land cover",True
+basin_size_bin,static,float64,1d/static,Catchment physiographic interaction feature (basin_size_bin),"Scales meteorological forcing by watershed area, terrain slope, and land cover",True
+forest_x_elev,static,float64,1d/static,Catchment physiographic interaction feature (forest_x_elev),"Scales meteorological forcing by watershed area, terrain slope, and land cover",True
+conceptual_fast_flow,static,float64,IIR_routing,Conceptual two-store HBV-style basin water balance state (conceptual_fast_flow),"Combines drainage area, slope, soil moisture, snowmelt, and fast/slow linear reservoirs",True
+conceptual_slow_flow,static,float64,IIR_routing,Conceptual two-store HBV-style basin water balance state (conceptual_slow_flow),"Combines drainage area, slope, soil moisture, snowmelt, and fast/slow linear reservoirs",True
+conceptual_water_balance,static,float64,IIR_routing,Conceptual two-store HBV-style basin water balance state (conceptual_water_balance),"Combines drainage area, slope, soil moisture, snowmelt, and fast/slow linear reservoirs",True
+station_mean_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_mean_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_median_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_median_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_std_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_std_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_p75_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_p75_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_p90_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_p90_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_p99_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_p99_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_1,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_1),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_2,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_2),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_3,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_3),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_4,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_4),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_5,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_5),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_6,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_6),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_7,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_7),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_8,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_8),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_9,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_9),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_10,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_10),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_11,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_11),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_monthly_mean_q_12,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_monthly_mean_q_12),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_current_month_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_current_month_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_doy_mean_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_doy_mean_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_doy_median_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_doy_median_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_calibrated_wb,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_calibrated_wb),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_doy_x_wb,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_doy_x_wb),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_sm_ratio_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_sm_ratio_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_rain_30d_scaled_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_rain_30d_scaled_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+station_rain_90d_scaled_q,station_stats,float64,train_only_prior,Training-set historical station discharge statistic (station_rain_90d_scaled_q),Calibrates baseline flow scale and seasonal regime per gauge using pre-cutoff training data only,True
+regional_mean_rain_1d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (regional_mean_rain_1d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+regional_max_rain_1d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (regional_max_rain_1d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+regional_mean_sm_1d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (regional_mean_sm_1d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+station_rain_vs_regional,cross_station,float64,1d,Station daily rainfall minus concurrent national/regional mean rainfall (mm),Isolates localized convective storms from broad synoptic precipitation systems,True
+basin_mean_rain_1d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (basin_mean_rain_1d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+basin_mean_sm_1d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (basin_mean_sm_1d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+basin_rain_7d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (basin_rain_7d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+basin_rain_30d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (basin_rain_30d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+upstream_midwest_rain_14d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (upstream_midwest_rain_14d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+upstream_midwest_rain_60d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (upstream_midwest_rain_60d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True
+upstream_midwest_sm_30d,cross_station,float64,1d_to_60d,Cross-station synoptic and upstream basin weather aggregate (upstream_midwest_sm_30d),"Captures large-scale atmospheric rivers, HUC-2 regional storms, and upstream Midwest basin routing",True

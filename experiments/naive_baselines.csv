@@ -1,0 +1,4 @@
+model,n_features,rmse,extreme_rmse,mae,r2,notes
+naive_station_mean,1,28684.21408691257,36950.645495392615,10477.389630659181,0.6225687418317494,Per-station historical mean flow
+naive_station_doy_mean,2,25097.561799097522,23623.805006314997,8672.434868913097,0.7110551096301753,Per-station day-of-year climatology
+naive_ridge_rain,11,33916.67613027164,54419.016268648506,17038.356341803817,0.47231041446185884,Linear Ridge on basic rain + static features
