@@ -648,9 +648,9 @@ export interface ChatStreamChunk {
 export async function fetchChatModels(): Promise<string[]> {
   try {
     const data = await apiFetch<string[]>("/chat/models");
-    return Array.isArray(data) && data.length > 0 ? data : ["qwen2.5:1.5b"];
+    return Array.isArray(data) ? data : [];
   } catch {
-    return ["qwen2.5:1.5b"];
+    return [];
   }
 }
 

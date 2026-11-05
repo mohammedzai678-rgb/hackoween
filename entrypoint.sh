@@ -9,10 +9,13 @@ echo "=========================================================="
 export OLLAMA_NUM_PARALLEL=1
 export OLLAMA_MAX_LOADED_MODELS=1
 export OLLAMA_FLASH_ATTENTION=1
-# Keep the small local chat model warm briefly so each chat does not pay a cold-load delay.
-export OLLAMA_KEEP_ALIVE=5m
+# Keep the selected local chat model loaded between chats for lower response latency.
+export OLLAMA_KEEP_ALIVE=10m
 export OMP_NUM_THREADS=2
 export MKL_NUM_THREADS=2
+
+# A fast, compact model for CPU inference with enough capacity for grounded chat.
+export FLOODCAST_CHAT_MODEL="${FLOODCAST_CHAT_MODEL:-qwen3.5:2b-q4_K_M}"
 
 # 1. Start Ollama local LLM engine in background
 echo "[1/3] Launching Ollama LLM Service on 127.0.0.1:11434..."
@@ -20,20 +23,55 @@ ollama serve &
 OLLAMA_PID=$!
 
 # Wait for Ollama to be ready
-for i in $(seq 1 20); do
+ollama_ready=0
+for i in $(seq 1 30); do
   if curl -s http://127.0.0.1:11434/ | grep -q "Ollama is running"; then
     echo "[SUCCESS] Ollama service is healthy and ready!"
+    ollama_ready=1
     break
   fi
   sleep 1
 done
 
-# Ensure model is ready (pull lightweight 350MB model for cloud memory efficiency)
-DEPLOY_MODEL="${OLLAMA_MODEL:-qwen2.5:0.5b}"
-if ! ollama list 2>/dev/null | grep -q "$DEPLOY_MODEL"; then
-  echo "Pulling $DEPLOY_MODEL model in background..."
-  ollama pull "$DEPLOY_MODEL" &
+if [ "$ollama_ready" -ne 1 ]; then
+  echo "[ERROR] Ollama did not become ready within 30 seconds."
+  exit 1
 fi
+
+# Ensure the selected model is installed before the backend accepts requests.
+if ! ollama list 2>/dev/null | grep -Fq "$FLOODCAST_CHAT_MODEL"; then
+  echo "Pulling $FLOODCAST_CHAT_MODEL..."
+  ollama pull "$FLOODCAST_CHAT_MODEL"
+fi
+
+# Load the model once before serving traffic, so the first user does not pay its cold-start cost.
+echo "Warming the local chat model..."
+python - <<'PY'
+import json
+import os
+import urllib.request
+
+model = os.environ["FLOODCAST_CHAT_MODEL"]
+payload = {
+    "model": model,
+    "messages": [{"role": "user", "content": "Reply with OK."}],
+    "think": False,
+    "stream": False,
+    "keep_alive": "10m",
+    "options": {"num_ctx": 4096, "num_predict": 8, "num_thread": 4, "temperature": 0},
+}
+request = urllib.request.Request(
+    "http://127.0.0.1:11434/api/chat",
+    data=json.dumps(payload).encode("utf-8"),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+with urllib.request.urlopen(request, timeout=180) as response:
+    result = json.loads(response.read().decode("utf-8"))
+if not result.get("message", {}).get("content", "").strip():
+    raise SystemExit("Ollama model warm-up returned no answer.")
+print("[SUCCESS] Ollama model generated a warm-up response.")
+PY
 
 # 2. Launch FastAPI backend on internal port 8000 with auto-supervisor
 echo "[2/3] Launching FastAPI Backend on 127.0.0.1:8000..."

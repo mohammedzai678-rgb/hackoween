@@ -83,8 +83,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [models, setModels] = useState<string[]>(["qwen2.5:0.5b", "qwen2.5:1.5b"]);
-  const [selectedModel, setSelectedModel] = useState("qwen2.5:0.5b");
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
   const [useRag, setUseRag] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
@@ -438,6 +438,9 @@ export default function ChatPage() {
               onChange={(e) => setSelectedModel(e.target.value)}
               className="bg-transparent font-mono text-xs font-semibold focus:outline-none cursor-pointer"
             >
+              {models.length === 0 && (
+                <option value="">Ollama unavailable</option>
+              )}
               {models.map((m) => (
                 <option key={m} value={m} className="bg-[var(--bg-card)] text-[var(--text-primary)]">
                   {m}
@@ -707,8 +710,10 @@ export default function ChatPage() {
             <span>
               Press <kbd className="font-mono rounded border border-[var(--border-primary)] px-1 bg-[var(--bg-secondary)]">Enter</kbd> to send, <kbd className="font-mono rounded border border-[var(--border-primary)] px-1 bg-[var(--bg-secondary)]">Shift + Enter</kbd> for new line
             </span>
-            <span className="hidden sm:inline font-mono">
-              ⚡ Private Local LLM • Ollama Runtime
+            <span className={`font-mono ${models.length === 0 ? "text-[var(--danger)]" : ""}`}>
+              {models.length > 0
+                ? `⚡ Local Ollama • ${selectedModel || models[0]}`
+                : "⚠ Chat unavailable • Ollama offline"}
             </span>
           </div>
         </div>

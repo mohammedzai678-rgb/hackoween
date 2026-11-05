@@ -28,6 +28,12 @@ from backend.app.services.rag_service import rag_service
 
 logger = logging.getLogger("floodcast.backend.chat_service")
 
+DEFAULT_OLLAMA_MODEL = os.getenv("FLOODCAST_CHAT_MODEL", "qwen3.5:2b-q4_K_M")
+OLLAMA_KEEP_ALIVE = "10m"
+OLLAMA_NUM_THREADS = 4
+OLLAMA_NUM_CTX = 4096
+OLLAMA_NUM_PREDICT = 512
+
 # Candidate Ollama host URLs (local container loopback, host proxy, or custom env)
 OLLAMA_CANDIDATE_URLS = [
     os.getenv("OLLAMA_BASE_URL"),
@@ -50,7 +56,8 @@ HYDROLOGY_KEYWORDS = {
 SIMULATION_KEYWORDS = {
     "simulation", "simulations", "vault", "scenario", "scenarios", "recent",
     "latest", "risk", "riskiest", "safest", "crest", "highest", "lowest", "worst",
-    "saved", "stored", "nor'easter", "deluge", "compare",
+    "saved", "stored", "nor'easter", "deluge", "compare", "area", "areas",
+    "station", "stations", "location", "locations",
 }
 
 
@@ -85,11 +92,11 @@ class LocalChatService:
                 data = res.json()
                 models = [m.get("name") for m in data.get("models", []) if m.get("name")]
                 if models:
-                    return models
+                    return sorted(models, key=lambda name: name != DEFAULT_OLLAMA_MODEL)
         except Exception as exc:
             logger.warning("Could not fetch models from Ollama: %s", exc)
 
-        return ["qwen2.5:0.5b", "qwen2.5:1.5b", "llama3.2:3b"]
+        return []
 
     def _is_hydrology_or_platform_query(self, query: str) -> bool:
         """Check if query is asking about river discharge, models, or FloodCast platform."""
@@ -172,20 +179,21 @@ class LocalChatService:
         # Build system instruction
         base_instructions = (
             "You are FLOODCAST Assistant, an AI hydrologist and general-purpose intelligent agent. "
-            "You are running 100% locally on the user's computer.\n\n"
+            "You run locally inside the FLOODCAST service using Ollama.\n\n"
             "SYSTEM CAPABILITIES:\n"
             "- You can answer ANY question (general coding, mathematics, science, writing, history, reasoning, etc.).\n"
             "- You also have comprehensive access to the FLOODCAST river discharge system (32 USGS stations, "
             "7 machine learning models, physics guardrails, and real-time user-saved storm simulations in the SQLite Vault).\n\n"
             "RESPONSE GUIDELINES:\n"
             "1. If the user asks about simulations, saved scenarios, most recent simulation, highest risk simulation, or lowest risk simulation, "
-            "USE THE PROVIDED REAL-TIME SIMULATION VAULT ANALYTICS DATA. Quote the exact title, station name, rainfall (mm), peak discharge (cfs), and P90 exceedance days accurately.\n"
+            "USE THE PROVIDED REAL-TIME SIMULATION VAULT ANALYTICS DATA. Quote the exact title, station name, rainfall (mm), peak discharge (cfs), and P90 exceedance days accurately. "
+            "Risk comparisons are ranked by the saved peak discharge. Never invent a simulation, location, value, or date; say clearly when the Vault has no matching saved data.\n"
             "2. If the question relates to FLOODCAST, river discharge, USGS stations, or machine learning forecasts, "
             "synthesize your answer using the provided GROUNDED KNOWLEDGE BASE and cite station names/IDs or models accurately.\n"
             "3. If the question is a GENERAL question (e.g., coding, general science, math, general advice, trivia), "
             "answer directly, thoroughly, and helpfully using your core general knowledge.\n"
             "4. Format your answers clearly using clean Markdown (headings, bullet points, and bold text).\n"
-            "5. Keep your tone professional, concise, and helpful."
+            "5. Keep your tone professional, concise, and helpful. If required live data is missing, state that it is unavailable instead of guessing."
         )
 
         context_blocks = []
@@ -219,10 +227,12 @@ class LocalChatService:
         """
         base_url = self.get_ollama_base_url()
         avail_models = self.get_available_models()
-        target_model = req.model or (avail_models[0] if avail_models else "qwen2.5:0.5b")
+        target_model = req.model or (avail_models[0] if avail_models else DEFAULT_OLLAMA_MODEL)
         if avail_models and target_model not in avail_models:
             # Fallback to the first installed model tag
             target_model = avail_models[0]
+        elif not avail_models:
+            target_model = DEFAULT_OLLAMA_MODEL
 
         system_prompt, citations, sources_used = self._build_system_prompt_and_citations(
             req.message, req.use_rag
@@ -238,12 +248,14 @@ class LocalChatService:
             "model": target_model,
             "messages": messages,
             "stream": True,
-            "keep_alive": "5m",
+            "think": False,
+            "keep_alive": OLLAMA_KEEP_ALIVE,
             "options": {
                 "temperature": req.temperature,
                 "top_p": 0.9,
-                "num_thread": 2,
-                "num_ctx": 2048,
+                "num_thread": OLLAMA_NUM_THREADS,
+                "num_ctx": OLLAMA_NUM_CTX,
+                "num_predict": OLLAMA_NUM_PREDICT,
             },
         }
 
@@ -251,11 +263,14 @@ class LocalChatService:
 
         def run_ollama() -> None:
             try:
+                received_content = False
+                completed = False
+                logger.info("Starting Ollama chat inference with model=%s", target_model)
                 with requests.post(
                     f"{base_url}/api/chat",
                     json=ollama_payload,
                     stream=True,
-                    timeout=(5.0, 180.0),
+                    timeout=(5.0, 90.0),
                 ) as resp:
                     if resp.status_code != 200:
                         events.put({
@@ -277,10 +292,19 @@ class LocalChatService:
 
                         token = chunk.get("message", {}).get("content", "")
                         if token:
+                            received_content = True
                             events.put({"token": token})
 
                         if chunk.get("done", False):
+                            completed = True
                             break
+
+                if not received_content:
+                    events.put({"error": "Ollama completed without producing an answer."})
+                    return
+                if not completed:
+                    events.put({"error": "Ollama stopped the response before it completed."})
+                    return
 
                 events.put({
                     "done": True,
@@ -319,10 +343,12 @@ class LocalChatService:
         """Non-streaming complete chat response."""
         base_url = self.get_ollama_base_url()
         avail_models = self.get_available_models()
-        target_model = req.model or (avail_models[0] if avail_models else "qwen2.5:0.5b")
+        target_model = req.model or (avail_models[0] if avail_models else DEFAULT_OLLAMA_MODEL)
         if avail_models and target_model not in avail_models:
             # Fallback to the first installed model tag
             target_model = avail_models[0]
+        elif not avail_models:
+            target_model = DEFAULT_OLLAMA_MODEL
 
         system_prompt, citations, sources_used = self._build_system_prompt_and_citations(
             req.message, req.use_rag
@@ -337,12 +363,14 @@ class LocalChatService:
             "model": target_model,
             "messages": messages,
             "stream": False,
-            "keep_alive": "5m",
+            "think": False,
+            "keep_alive": OLLAMA_KEEP_ALIVE,
             "options": {
                 "temperature": req.temperature,
                 "top_p": 0.9,
-                "num_thread": 2,
-                "num_ctx": 2048,
+                "num_thread": OLLAMA_NUM_THREADS,
+                "num_ctx": OLLAMA_NUM_CTX,
+                "num_predict": OLLAMA_NUM_PREDICT,
             },
         }
 
@@ -350,11 +378,18 @@ class LocalChatService:
             resp = requests.post(
                 f"{base_url}/api/chat",
                 json=ollama_payload,
-                timeout=45.0,
+                timeout=(5.0, 90.0),
             )
             if resp.status_code == 200:
                 data = resp.json()
                 reply_text = data.get("message", {}).get("content", "")
+                if not reply_text.strip():
+                    return ChatResponse(
+                        reply="Ollama completed without producing an answer.",
+                        citations=[],
+                        model=target_model,
+                        sources_used=False,
+                    )
                 return ChatResponse(
                     reply=reply_text,
                     citations=citations,

@@ -384,7 +384,13 @@ def ingest_rag_document(req: RagDocumentIngestRequest) -> RagChunkMatch:
     summary="Get list of available local Ollama LLM models",
 )
 def get_chat_models() -> List[str]:
-    return chat_service.get_available_models()
+    models = chat_service.get_available_models()
+    if not models:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Local Ollama chat service is unavailable or has no installed model.",
+        )
+    return models
 
 
 @router.post(
