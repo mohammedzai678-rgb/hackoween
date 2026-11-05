@@ -9,6 +9,8 @@ echo "=========================================================="
 export OLLAMA_NUM_PARALLEL=1
 export OLLAMA_MAX_LOADED_MODELS=1
 export OLLAMA_FLASH_ATTENTION=1
+# Release the local model after each request so it does not occupy scarce RAM while idle.
+export OLLAMA_KEEP_ALIVE=0
 export OMP_NUM_THREADS=2
 export MKL_NUM_THREADS=2
 
@@ -37,21 +39,33 @@ fi
 echo "[2/3] Launching FastAPI Backend on 127.0.0.1:8000..."
 (
   while true; do
-    uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
-    echo "[FASTAPI] Backend process exited. Auto-respawning in 1s..."
+    if uvicorn backend.app.main:app --host 127.0.0.1 --port 8000; then
+      backend_exit_status=0
+      echo "[FASTAPI] Backend exited with status 0. Restarting in 1s..."
+    else
+      backend_exit_status=$?
+      echo "[FASTAPI] Backend exited with status ${backend_exit_status}. Restarting in 1s..."
+    fi
     sleep 1
   done
 ) &
 
 # Wait for backend to be ready
 echo "Waiting for backend healthcheck..."
+backend_ready=0
 for i in $(seq 1 40); do
-  if curl -s http://127.0.0.1:8000/api/v1/health | grep -q "ok"; then
+  if curl -fsS http://127.0.0.1:8000/api/v1/health | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
     echo "[SUCCESS] Backend is healthy and ready!"
+    backend_ready=1
     break
   fi
   sleep 1
 done
+
+if [ "$backend_ready" -ne 1 ]; then
+  echo "[ERROR] Backend did not become healthy within 40 seconds; stopping container startup."
+  exit 1
+fi
 
 # 3. Launch Next.js frontend (respects Railway $PORT or defaults to 8080)
 export PORT=${PORT:-8080}
