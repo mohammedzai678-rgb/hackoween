@@ -5,6 +5,13 @@ echo "=========================================================="
 echo "  Starting FLOODCAST Unified Container (Railway / Cloud)"
 echo "=========================================================="
 
+# Limit thread concurrency and memory spikes on cloud CPU
+export OLLAMA_NUM_PARALLEL=1
+export OLLAMA_MAX_LOADED_MODELS=1
+export OLLAMA_FLASH_ATTENTION=1
+export OMP_NUM_THREADS=2
+export MKL_NUM_THREADS=2
+
 # 1. Start Ollama local LLM engine in background
 echo "[1/3] Launching Ollama LLM Service on 127.0.0.1:11434..."
 ollama serve &
@@ -26,10 +33,15 @@ if ! ollama list 2>/dev/null | grep -q "$DEPLOY_MODEL"; then
   ollama pull "$DEPLOY_MODEL" &
 fi
 
-# 2. Launch FastAPI backend on internal port 8000
+# 2. Launch FastAPI backend on internal port 8000 with auto-supervisor
 echo "[2/3] Launching FastAPI Backend on 127.0.0.1:8000..."
-uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 &
-BACKEND_PID=$!
+(
+  while true; do
+    uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+    echo "[FASTAPI] Backend process exited. Auto-respawning in 1s..."
+    sleep 1
+  done
+) &
 
 # Wait for backend to be ready
 echo "Waiting for backend healthcheck..."

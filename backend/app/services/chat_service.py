@@ -239,6 +239,8 @@ class LocalChatService:
             "options": {
                 "temperature": req.temperature,
                 "top_p": 0.9,
+                "num_thread": 2,
+                "num_ctx": 2048,
             },
         }
 
@@ -310,6 +312,8 @@ class LocalChatService:
             "options": {
                 "temperature": req.temperature,
                 "top_p": 0.9,
+                "num_thread": 2,
+                "num_ctx": 2048,
             },
         }
 
