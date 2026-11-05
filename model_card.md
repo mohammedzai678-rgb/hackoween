@@ -66,4 +66,16 @@ Documented in `data/processed/feature_catalog.csv` and `floodcast/features.py`. 
 4. **Ungauged Station Generalization:** In Leave-One-Station-Out CV (`experiments/leave_one_station_out.csv`), removing a station's historical discharge prior reduces median per-station $R^2$ to `0.1041`, showing that historical basin yield priors are critical when no recent flow lags are available.
 
 ---
-*Last updated: 2026-11-04*
+
+## 6. Verification
+
+The committed output is checked against the processed test keys by:
+
+```bash
+python -m floodcast.check_submission predictions.csv data/processed/test.csv
+python -m pytest tests -q
+```
+
+See [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md) for the complete criterion-to-file map and [docs/FILE_MAP.md](docs/FILE_MAP.md) for the repository navigation guide.
+
+*Last updated: 2026-11-05*

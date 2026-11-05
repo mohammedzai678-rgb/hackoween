@@ -9,9 +9,11 @@
 | Document | Description | Status |
 |----------|-------------|--------|
 | [REQUIREMENTS_CHECKLIST.md](REQUIREMENTS_CHECKLIST.md) | Every PDF requirement (`PSA`, `DS`, `IO`, `OP`, `VR`, `EC`, `DQ`, `SR`, `RS`, `IQ`) mapped to code | ✅ Complete |
-| [DATA.md](DATA.md) | Data card: 32 USGS stations, `140,256` train rows, `11,680` test rows, schema & `CUTOFF` rules | ✅ Complete |
+| [JUDGE_GUIDE.md](JUDGE_GUIDE.md) | Shortest criterion-to-file map and reproducible judge verification commands | ✅ Complete |
+| [FILE_MAP.md](FILE_MAP.md) | Source, artifact, test, application, and documentation file map | ✅ Complete |
+| [DATA.md](DATA.md) | Data card: configured stations, `128,811` train rows, `10,585` test rows, schema & `CUTOFF` rules | ✅ Complete |
 | [DATA_EXTRACTION.md](DATA_EXTRACTION.md) | Exact provenance, SHA-256 manifest checksums, and reproducible ingestion commands | ✅ Complete |
-| [FEATURES.md](FEATURES.md) | 62-feature catalog across 6 hydrological families, mathematical formulas, and ablations | ✅ Complete |
+| [FEATURES.md](FEATURES.md) | 127-feature catalog across 8 hydrological families, representative formulas, and experiment links | ✅ Complete |
 | [MODELING.md](MODELING.md) | Data sanity checks, target strategies (`raw`, `log1p`, `scaled`, `tweedie`), and ensemble architecture | ✅ Complete |
 | [TRAINING_LOG.md](TRAINING_LOG.md) | Chronological Training Start Notices and Training Result Notices (Training Gate protocol) | ✅ Complete |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | Multi-run progression table, flood-peak error diagnostics, and hydrological lessons learned | ✅ Complete |
@@ -31,13 +33,13 @@
 | File | Description | Status |
 |------|-------------|--------|
 | [`README.md`](../README.md) | Team overview, 5-sentence approach summary, quick start, and architecture | ✅ Complete |
-| [`model_card.md`](../model_card.md) | Model architecture, 62 features, validation metrics, pre-trained declaration (`None`), & limitations | ✅ Complete |
+| [`model_card.md`](../model_card.md) | Model architecture, 127 features, validation metrics, pre-trained declaration (`None`), & limitations | ✅ Complete |
 | [`solution.py`](../solution.py) | One-command reproducible pipeline (`ingest → features → train → predict → check`) | ✅ Complete |
 | [`requirements.txt`](../requirements.txt) | Pinned Python dependencies (`lightgbm`, `xgboost`, `catboost`, `fastapi`, `pandas`, etc.) | ✅ Complete |
-| [`predictions.csv`](../predictions.csv) | Validated test-set discharge predictions (`11,680` rows, `station_id,date,discharge_cfs`) | ✅ Complete |
+| [`predictions.csv`](../predictions.csv) | Validated test-set discharge predictions (`10,585` rows, `station_id,date,discharge_cfs`) | ✅ Complete |
 | [`slides/slides.md`](../slides/slides.md) | 5-slide Marp/Reveal.js presentation deck (Problem → Data → Model → Results → Limitations) | ✅ Complete |
 | [`Makefile`](../Makefile) | Automated build, test, validation, and full-stack orchestration targets | ✅ Complete |
 
 ---
 
-*Last updated: 2026-11-04 — FLOODCAST Documentation & Slides Lead*
+*Last updated: 2026-11-05 — FLOODCAST Documentation & Slides Lead*

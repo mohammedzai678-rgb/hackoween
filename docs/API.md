@@ -1,6 +1,8 @@
 # FLOODCAST Backend API Reference (`/api/v1`)
 
 > Complete specification for the FLOODCAST FastAPI backend service (`backend/app/main.py`), powering the interactive hydrological workbench, experiment tracker, live prediction playground, and automated submission verifier.
+>
+> **Artifact-count note:** Some response examples below are historical API examples captured during earlier development runs. For current committed submission dimensions, use [docs/JUDGE_GUIDE.md](JUDGE_GUIDE.md), [data/processed/test.csv](../data/processed/test.csv), and the live submission checker.
 
 ---
 

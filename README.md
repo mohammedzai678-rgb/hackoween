@@ -81,6 +81,25 @@ docker compose up --build
 
 ## 4. Complete CSV Artifacts & Documentation Index
 
+## 5. Judge Quick Start
+
+If you are evaluating the submission, start with these files in this order:
+
+1. **[docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md)** — criterion-by-criterion evidence map and the shortest verification path.
+2. **[predictions.csv](predictions.csv)** — the submitted output artifact.
+3. **[model_card.md](model_card.md)** — model, features, validation, provenance, and limitations.
+4. **[docs/REQUIREMENTS_CHECKLIST.md](docs/REQUIREMENTS_CHECKLIST.md)** — the detailed mapping from the challenge requirements to code and tests.
+5. **[docs/FILE_MAP.md](docs/FILE_MAP.md)** — what each important file does and where to look for a specific behavior.
+
+The fastest local validity check is:
+
+```bash
+python -m floodcast.check_submission predictions.csv data/processed/test.csv
+python -m pytest tests -q
+```
+
+The first command checks the exact submission contract. The second runs the leakage, scoring, API, RAG, and submission-checker tests. Both commands were run against this repository snapshot; the expected result is a passing submission check and 44 passing tests.
+
 - **Root Submission Deliverables**:
   - `predictions.csv` (`10,585` rows, `29` stations, `2022-01-01..2022-12-31`, `PASS`)
   - `solution.py`, `model_card.md`, `requirements.txt`, `Makefile`, `docker-compose.yml`
@@ -92,4 +111,4 @@ docker compose up --build
   - `naive_baselines.csv`, `ablations.csv`, `target_strategies.csv`, `flood_peak_handling.csv`
   - `per_station_metrics.csv`, `worst_50_errors.csv`, `expanding_window_folds.csv`, `leave_one_station_out.csv`
 - **Documentation (`docs/` & `slides/slides.md`)**:
-  - See `docs/README.md` for all 16 engineering documents and `slides/slides.md` for the 6-slide presentation deck.
+  - See `docs/README.md` for the documentation catalog, `docs/JUDGE_GUIDE.md` for judging, and `slides/slides.md` for the presentation deck.

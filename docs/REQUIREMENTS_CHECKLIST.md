@@ -14,7 +14,7 @@
 ### 2.1 Dataset 1 — USGS NWIS (Primary target data)
 - [x] Use USGS daily discharge data (parameter 00060) — **DS1-1** → `floodcast/ingest.py`
 - [x] Include recommended starter stations: `01646500`, `07010000`, `08158000`, `02087500`, `11447650` — **DS1-2** → `configs/base.yaml`
-- [x] Add more stations from USGS beyond starter data (32 total stations across diverse basins) — **DS1-3** → `configs/base.yaml`, `scripts/generate_data.py`
+- [x] Add more stations from USGS beyond starter data (32 configured station metadata records; 30 stations in train, 29 in test) — **DS1-3** → `configs/base.yaml`, `data/processed/station_metadata.csv`
 
 ### 2.2 Dataset 2 — Open-Meteo Historical Weather API
 - [x] Retrieve daily precipitation (mm), max/min temperature (°C), soil moisture — **DS2-1** → `floodcast/ingest.py`
@@ -28,18 +28,18 @@
 ### 2.4 Dataset Joins
 - [x] `station_id` joins discharge ↔ catchment attributes — **DJ-1** → `floodcast/ingest.py`
 - [x] `(lat, lon, date)` joins discharge ↔ weather — **DJ-2** → `floodcast/ingest.py`
-- [x] Pre-joined starter CSVs / development dataset (`140,256` train rows, `11,680` test rows) — **DJ-3** → `data/raw/starter/`, `data/processed/`
+- [x] Pre-joined processed dataset (`128,811` train rows, `10,585` test rows) — **DJ-3** → `data/processed/`
 
 ## 3. Input/Output Contract
 ### 3.1 Files Provided
-- [x] `train.csv` with columns: `station_id, date, discharge_cfs, precipitation_mm, temp_max_c, temp_min_c, soil_moisture, drainage_area_sqmi, mean_elevation_ft, slope_pct, forest_cover_pct` (`140,256` rows) — **IO-1** → `data/processed/train.csv`
-- [x] `test.csv` same columns minus `discharge_cfs` (`11,680` rows) — **IO-2** → `data/processed/test.csv`
-- [x] `sample_submission.csv`: `station_id, date, discharge_cfs` (zeros, `11,680` rows) — **IO-3** → `data/processed/sample_submission.csv`
+- [x] `train.csv` with columns: `station_id, date, discharge_cfs, precipitation_mm, temp_max_c, temp_min_c, soil_moisture, drainage_area_sqmi, mean_elevation_ft, slope_pct, forest_cover_pct` (`128,811` rows) — **IO-1** → `data/processed/train.csv`
+- [x] `test.csv` same columns minus `discharge_cfs` (`10,585` rows) — **IO-2** → `data/processed/test.csv`
+- [x] `sample_submission.csv`: `station_id, date, discharge_cfs` (zeros, `10,585` rows) — **IO-3** → `data/processed/sample_submission.csv`
 - [x] `station_metadata.csv`: `station_id, station_name, latitude, longitude, state, river_name` (`32` rows) — **IO-4** → `data/processed/station_metadata.csv`
 
 ### 3.2 Required Output — `predictions.csv`
 - [x] Exactly three columns: `station_id`, `date`, `discharge_cfs` — **OP-1** → `floodcast/check_submission.py`
-- [x] One row per test record (`11,680` rows) — **OP-2** → `floodcast/check_submission.py`
+- [x] One row per test record (`10,585` rows in the committed artifact) — **OP-2** → `floodcast/check_submission.py`
 - [x] `discharge_cfs` must be a non-negative float — **OP-3** → `floodcast/train.py`, `floodcast/check_submission.py`
 - [x] No NaN values — **OP-4** → `floodcast/check_submission.py`
 - [x] No negative values — **OP-5** → `floodcast/check_submission.py`
@@ -51,7 +51,7 @@
 ## 4. Validation Rules (Auto-reject Shield)
 - [x] Every `(station_id, date)` in `test.csv` present in predictions — **VR-1** → `floodcast/check_submission.py`
 - [x] No negative or NaN `discharge_cfs` — **VR-2** → `floodcast/check_submission.py`
-- [x] Same row count as `test.csv` (`11,680`) — **VR-3** → `floodcast/check_submission.py`
+- [x] Same row count as `test.csv` (`10,585` in the committed artifact) — **VR-3** → `floodcast/check_submission.py`
 - [x] Correct column names and order — **VR-4** → `floodcast/check_submission.py`
 - [x] UTF-8 encoding — **VR-5** → `floodcast/check_submission.py`
 
@@ -103,7 +103,7 @@
 
 ## 11. Internal Quality Requirements
 - [x] No data leakage: test dates strictly after training dates — **IQ-1** → `tests/test_no_leakage.py`
-- [x] `CUTOFF` enforcement: no discharge download after `CUTOFF` (`2022-12-31`) — **IQ-2** → `configs/base.yaml`, `floodcast/ingest.py`
+- [x] `CUTOFF` enforcement: no discharge download after `CUTOFF` (`2021-12-31`) — **IQ-2** → `configs/base.yaml`, `floodcast/ingest.py`
 - [x] All rolling/lag features look backward only — **IQ-3** → `floodcast/features.py`, `tests/test_no_leakage.py`
 - [x] Predictions clipped at 0 — **IQ-4** → `floodcast/train.py`
 - [x] One-command reproducibility — **IQ-5** → `solution.py`, `Makefile`

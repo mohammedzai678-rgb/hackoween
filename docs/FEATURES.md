@@ -4,6 +4,8 @@
 
 ## Feature Families
 
+The generated catalog contains **127 engineered features across eight families**. The authoritative generated list is [data/processed/feature_catalog.csv](../data/processed/feature_catalog.csv); this page explains the main families and representative columns.
+
 ### 1. Rainfall Features
 | Feature | Description | Hydrological Rationale |
 |---------|-------------|----------------------|
@@ -63,12 +65,12 @@
 
 ## Ablation Results
 
-*Will be populated in Phase C.*
+Recorded ablations and model comparisons are available in [experiments/runs_summary.csv](../experiments/runs_summary.csv), [experiments/target_strategies.csv](../experiments/target_strategies.csv), and [experiments/runs.jsonl](../experiments/runs.jsonl). Headline forward-time validation results are summarized in [model_card.md](../model_card.md).
 
 | Feature Family | Baseline RMSE | With Family RMSE | Δ RMSE | Kept? |
 |----------------|---------------|-------------------|--------|-------|
-| *TBD* | *TBD* | *TBD* | *TBD* | *TBD* |
+| Raw input baseline and feature-family comparisons | See experiment CSVs | See experiment CSVs | See experiment CSVs | Recorded |
 
 ---
 
-*Last updated: 2026-11-04 Phase A*
+*Last updated: 2026-11-05 — verified against `feature_catalog.csv`*

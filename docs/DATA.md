@@ -6,7 +6,7 @@
 |----------|-------|
 | **Task** | Predict daily river discharge (cfs) from weather + catchment attributes |
 | **Target** | `discharge_cfs` (continuous, non-negative) |
-| **CUTOFF** | 2022-12-31 (configurable in `configs/base.yaml`) |
+| **CUTOFF** | 2021-12-31 for discharge labels (configurable in `configs/base.yaml`) |
 | **Training period** | 2010-01-01 to 2021-12-31 |
 | **Test period** | 2022-01-01 to 2022-12-31 |
 | **Starter files** | ❌ NOT FOUND — built development dataset from scratch |
@@ -40,7 +40,7 @@
 | 02087500 | Neuse River near Clayton NC | NC | 770 |
 | 11447650 | Sacramento River at Freeport CA | CA | 23,300 |
 
-### Additional Stations (~26 more for diversity)
+### Additional Stations (27 configured beyond the five starters)
 - Small basins: Eno River NC (66 sq mi), Myakka River FL (229 sq mi)
 - Medium basins: Nishnabotna River IA (2,806 sq mi), Weber River UT (1,650 sq mi)
 - Large basins: Ohio River (76,580+ sq mi), Missouri River (322,800 sq mi)
@@ -90,4 +90,4 @@ Stations with < 80% complete daily discharge records are dropped.
 
 ---
 
-*Last updated: 2026-11-04 Phase A*
+*Last updated: 2026-11-05 — verified against the committed processed CSVs*
