@@ -117,6 +117,8 @@ class DuckDBHelper:
                     df["station_id"] = df["station_id"].astype(str).apply(
                         lambda s: s.zfill(8) if s.isdigit() and len(s) < 8 else s
                     )
+                if "date" in df.columns:
+                    df["date"] = df["date"].astype(str).str.slice(0, 10)
                 if use_cache:
                     self._cache[cache_key] = (mtime, df)
                 return df.copy()
@@ -137,6 +139,8 @@ class DuckDBHelper:
             df["station_id"] = df["station_id"].astype(str).apply(
                 lambda s: s.zfill(8) if s.isdigit() and len(s) < 8 else s
             )
+        if "date" in df.columns:
+            df["date"] = df["date"].astype(str).str.slice(0, 10)
 
         if use_cache:
             self._cache[cache_key] = (mtime, df)

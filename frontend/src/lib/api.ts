@@ -405,8 +405,9 @@ export async function fetchStationDetail(
   const series: StationTimeSeriesPoint[] = rawSeries.map((pt: any) => {
     const actual = pt.discharge_cfs ?? pt.actual_discharge_cfs ?? null;
     const pred = pt.predicted_discharge_cfs ?? null;
+    const primaryVal = actual !== null && actual !== undefined ? Number(actual) : (pred !== null && pred !== undefined ? Number(pred) : null);
     return {
-      date: String(pt.date),
+      date: String(pt.date).slice(0, 10),
       discharge_cfs:
         actual !== null && actual !== undefined ? Number(actual) : null,
       predicted_discharge_cfs:
@@ -418,9 +419,9 @@ export async function fetchStationDetail(
       split: (pt.split as "train" | "val" | "test") || "test",
       is_extreme_p90: Boolean(
         pt.is_extreme_p90 ??
-          (actual !== null &&
+          (primaryVal !== null &&
             st.p90_discharge_cfs > 0 &&
-            Number(actual) >= st.p90_discharge_cfs)
+            primaryVal >= st.p90_discharge_cfs)
       ),
     };
   });

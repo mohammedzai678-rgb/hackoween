@@ -20,3 +20,4 @@ frontend/.next
 frontend/out
 frontend/.turbo
 frontend/tsconfig.tsbuildinfo
+artifacts/onnx_llm

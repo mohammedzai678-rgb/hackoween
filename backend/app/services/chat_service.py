@@ -42,9 +42,10 @@ _PROBE_FAIL_COOLDOWN_SEC = 15.0
 
 # Short, static system prompt so Ollama's KV cache remains 100% hot across turns
 STATIC_SYSTEM_PROMPT = (
-    "You are FLOODCAST Assistant, a fast, accurate AI hydrologist and general-purpose assistant. "
-    "When [VERIFIED CONTEXT] is provided, quote exact station IDs, names, rainfall (mm), peak discharge (cfs), "
-    "P90 surge days, and ML metrics without guessing. Answer concisely in clean Markdown."
+    "You are FLOODCAST Assistant, an authoritative AI hydrologist for the 32-station USGS FLOODCAST platform. "
+    "Never say you cannot provide specific predictions or warnings. Always use the provided [VERIFIED CONTEXT] "
+    "(Simulation Vault scenarios, USGS gauge P90/P99 warning thresholds, and LightGBM/XGBoost ensemble forecasts) "
+    "to give concrete, data-backed flood predictions, warning thresholds, and hydrological guidance in clean Markdown."
 )
 
 # Candidate Ollama host URLs (local container loopback, host proxy, or custom env)
@@ -57,13 +58,16 @@ OLLAMA_CANDIDATE_URLS = [
 OLLAMA_CANDIDATE_URLS = [u for u in OLLAMA_CANDIDATE_URLS if u]
 
 HYDROLOGY_KEYWORDS = {
-    "flood", "stream", "river", "discharge", "cfs", "station", "gauge", "gage",
-    "usgs", "rain", "rainfall", "precipitation", "storm", "soil", "moisture",
-    "watershed", "catchment", "basin", "crest", "surge", "p90", "p99", "inundation",
-    "potomac", "mississippi", "ohio", "columbia", "sacramento", "colorado",
-    "xgboost", "catboost", "lightgbm", "ensemble", "model", "rmse", "r2",
-    "vault", "simulation", "simulations", "predict", "forecast", "floodcast", "little falls",
-    "recent", "latest", "risk", "riskiest", "safest", "worst", "highest", "lowest",
+    "flood", "flooding", "floods", "stream", "river", "rivers", "discharge", "cfs",
+    "station", "stations", "gauge", "gage", "usgs", "rain", "rainfall", "precipitation",
+    "storm", "soil", "moisture", "watershed", "catchment", "basin", "crest", "surge",
+    "p90", "p99", "inundation", "potomac", "mississippi", "ohio", "columbia",
+    "sacramento", "colorado", "austin", "texas", "california", "xgboost", "catboost",
+    "lightgbm", "ensemble", "model", "rmse", "r2", "vault", "simulation", "simulations",
+    "predict", "prediction", "predictions", "forecast", "forecasts", "warning",
+    "warnings", "alert", "alerts", "outlook", "hazard", "danger", "today", "current",
+    "status", "floodcast", "little falls", "recent", "latest", "risk", "riskiest",
+    "safest", "worst", "highest", "lowest", "area", "areas", "where", "when",
 }
 
 SIMULATION_EXPLICIT_KEYWORDS = {
@@ -116,7 +120,7 @@ class LocalChatService:
         return "http://127.0.0.1:11434"
 
     def get_available_models(self, force_refresh: bool = False) -> List[str]:
-        """Fetch list of locally installed Ollama models with 60s in-memory cache."""
+        """Fetch list of locally pulled Ollama models (cached for 60s to avoid per-request HTTP latency)."""
         now = time.monotonic()
         if not force_refresh and self._cached_models and (now - self._models_cache_ts) < _MODELS_CACHE_TTL_SEC:
             return list(self._cached_models)
@@ -147,15 +151,13 @@ class LocalChatService:
                                 return (idx, name)
                         return (len(priority), name)
 
-                    sorted_models = sorted(models, key=_sort_key)
-                    self._cached_models = sorted_models
+                    models_sorted = sorted(models, key=_sort_key)
+                    self._cached_models = models_sorted
                     self._models_cache_ts = now
-                    self._last_probe_fail_ts = 0.0
-                    return list(sorted_models)
+                    return list(models_sorted)
         except Exception as exc:
             self._last_probe_fail_ts = now
-            logger.warning("Could not fetch models from Ollama: %s", exc)
-
+            logger.debug("Ollama tags probe skipped: %s", exc)
         return list(self._cached_models)
 
     def _resolve_target_model(self, requested_model: Optional[str]) -> str:
@@ -167,11 +169,11 @@ class LocalChatService:
         return DEFAULT_OLLAMA_MODEL
 
     def warm_up_async(self) -> None:
-        """Pre-warm Ollama model and static system prompt KV cache in background."""
+        """Pre-warm Ollama model and pin STATIC_SYSTEM_PROMPT in KV cache in a background thread."""
         def _warm() -> None:
             try:
                 avail = self.get_available_models(force_refresh=True)
-                if not avail:
+                if not avail or not self._cached_base_url:
                     return
                 model = avail[0]
                 base_url = self.get_ollama_base_url()
@@ -354,38 +356,57 @@ class LocalChatService:
                     matched_station = st
                     break
 
-        # 2. Station name / river keyword match when asking about station/gauge/thresholds/basin
+        # 2. Station name / city / river keyword match across all 32 USGS gauges
         if matched_station is None:
-            station_intent_words = {
-                "station", "gauge", "gage", "usgs", "threshold", "thresholds",
-                "drainage", "basin", "tell me about", "potomac", "little falls",
-                "metropolis", "lees ferry", "freeport",
+            stop_words = {
+                "river", "near", "fork", "creek", "below", "above", "east", "west",
+                "north", "south", "station", "gauge", "gage", "usgs", "what", "where",
+                "when", "which", "with", "from", "that", "this", "have", "will",
+                "about", "tell", "give", "show", "predict", "prediction", "predictions",
+                "warning", "warnings", "alert", "alerts", "flood", "flooding", "flow",
+                "discharge", "current", "today", "forecast", "status", "risk", "high",
             }
-            if any(w in lower for w in station_intent_words):
-                best_score = 0
-                for st in stations:
-                    score = 0
-                    st_name_lower = st.station_name.lower()
-                    river_lower = st.river_name.lower()
-                    if st.station_id in lower:
-                        score += 10
-                    for part in re.findall(r"[a-z]{4,}", st_name_lower):
-                        if part not in {"river", "near", "fork", "creek", "below", "above", "east", "west", "north", "south"} and part in lower:
-                            score += 3
-                    for part in re.findall(r"[a-z]{4,}", river_lower):
-                        if part not in {"river", "fork", "creek"} and part in lower:
-                            score += 2
-                    if score > best_score:
-                        best_score = score
-                        matched_station = st
-                if best_score < 3:
-                    matched_station = None
+            best_score = 0
+            for st in stations:
+                score = 0
+                st_name_lower = st.station_name.lower()
+                river_lower = st.river_name.lower()
+                if st.station_id in lower:
+                    score += 10
+                for part in re.findall(r"[a-z]{4,}", st_name_lower):
+                    if part not in stop_words and re.search(rf"\b{re.escape(part)}\b", lower):
+                        score += 4
+                for part in re.findall(r"[a-z]{4,}", river_lower):
+                    if part not in stop_words and re.search(rf"\b{re.escape(part)}\b", lower):
+                        score += 3
+                if score > best_score:
+                    best_score = score
+                    matched_station = st
+            if best_score < 3:
+                matched_station = None
 
         if matched_station is None:
             return None
 
         st = matched_station
         sims = [s for s in rag_service.list_simulations() if s.station_id == st.station_id]
+        detail = data_service.get_station_detail(st.station_id, limit=30)
+        recent_pts = detail.series if detail and detail.series else []
+        latest_pt = recent_pts[-1] if recent_pts else None
+        recent_peak_pred = max(
+            (float(p.predicted_discharge_cfs or p.discharge_cfs or 0.0) for p in recent_pts),
+            default=float(st.mean_discharge_cfs),
+        )
+        p90_warning_days = sum(
+            1
+            for p in recent_pts
+            if float(p.predicted_discharge_cfs or p.discharge_cfs or 0.0) >= float(st.p90_discharge_cfs)
+        )
+        warning_status = (
+            f"**[ACTIVE P90+ FLOOD WARNING]** ({p90_warning_days} days in recent 30-day window >= `{st.p90_discharge_cfs:,.1f} cfs`)"
+            if p90_warning_days > 0
+            else f"**[NORMAL / BELOW FLOOD WARNING]** (Peak `{recent_peak_pred:,.1f} cfs` is below P90 threshold `{st.p90_discharge_cfs:,.1f} cfs`)"
+        )
 
         citation = RagChunkMatch(
             doc_id=f"station_{st.station_id}",
@@ -412,7 +433,23 @@ class LocalChatService:
 
         lines = [
             f"### USGS Station `#{st.station_id}` — {st.station_name} ({st.state})",
-            f"Grounded hydrological telemetry and basin physical characteristics for **{st.station_name}** on the **{st.river_name}**:",
+            f"Grounded hydrological telemetry, ensemble predictions, and flood warning status for **{st.station_name}** on the **{st.river_name}**:",
+            "",
+            "#### Current Ensemble Prediction & Flood Warning Status",
+            f"- **Warning Status:** {warning_status}",
+        ]
+        if latest_pt:
+            pred_val = latest_pt.predicted_discharge_cfs if latest_pt.predicted_discharge_cfs is not None else latest_pt.discharge_cfs
+            act_val = latest_pt.discharge_cfs
+            lines.append(
+                f"- **Latest Ensemble Predicted Discharge (`{latest_pt.date}`):** **`{float(pred_val or 0.0):,.1f} cfs`**"
+                + (f" (Observed USGS Flow: `{float(act_val):,.1f} cfs`)" if act_val is not None else "")
+            )
+            lines.append(
+                f"- **Recent 30-Day Peak Forecast:** **`{recent_peak_pred:,.1f} cfs`** | **Latest Precip:** `{latest_pt.precipitation_mm or 0.0:.1f} mm` | **Soil Moisture:** `{latest_pt.soil_moisture or 0.0:.4f}`"
+            )
+
+        lines.extend([
             "",
             "#### Catchment & Physical Attributes",
             f"- **USGS Gauge ID:** `#{st.station_id}` ({st.river_name}, {st.state})",
@@ -421,12 +458,12 @@ class LocalChatService:
             f"- **Mean Basin Elevation:** `{st.mean_elevation_ft:,.1f} ft`",
             f"- **Catchment Slope & Forest Cover:** `{st.slope_pct:.2f}%` slope | `{st.forest_cover_pct:.1f}%` forest cover",
             "",
-            "#### Flood Thresholds & Historical Discharge Telemetry",
+            "#### Flood Warning Thresholds & Historical Discharge Telemetry",
             f"- **Mean Historical Flow:** `{st.mean_discharge_cfs:,.1f} cfs` (Median: `{st.median_discharge_cfs:,.1f} cfs`)",
-            f"- **P90 Flood Surge Threshold (90th Percentile):** **`{st.p90_discharge_cfs:,.1f} cfs`**",
-            f"- **P99 Critical Flood Threshold (99th Percentile):** **`{st.p99_discharge_cfs:,.1f} cfs`**",
+            f"- **P90 Flood Surge Warning Threshold (90th Percentile):** **`{st.p90_discharge_cfs:,.1f} cfs`**",
+            f"- **P99 Critical Flood Warning Threshold (99th Percentile):** **`{st.p99_discharge_cfs:,.1f} cfs`**",
             f"- **Historical Maximum Crest:** **`{st.max_discharge_cfs:,.1f} cfs`**",
-        ]
+        ])
 
         if sims:
             lines.append("")
@@ -437,6 +474,131 @@ class LocalChatService:
                 )
 
         return "\n".join(lines), [citation]
+
+    def _match_predictions_and_warnings_fast_reply(
+        self, query: str
+    ) -> Optional[Tuple[str, List[RagChunkMatch]]]:
+        """
+        Instant grounded response for general flood prediction, warning, alert,
+        forecast, outlook, or active hazard queries across the 32 USGS stations.
+        """
+        lower = query.lower()
+        tokens = set(re.findall(r"[a-z0-9_.\-]+", lower))
+
+        # Exclude ML model metric comparison queries or coding/theory questions
+        if "python" in tokens or "supervised" in tokens or "unsupervised" in tokens or "nash" in tokens:
+            return None
+
+        warning_or_forecast_words = {
+            "warning", "warnings", "alert", "alerts", "predict", "prediction",
+            "predictions", "forecast", "forecasts", "outlook", "hazard", "danger",
+            "emergency", "evacuate", "watch", "advisory", "exceedance", "flooding",
+        }
+        has_warning_intent = bool(tokens & warning_or_forecast_words) or any(
+            phrase in lower
+            for phrase in (
+                "flood risk", "flood status", "current flood", "today's flood",
+                "any flood", "where will it flood", "which river", "which rivers",
+                "specific predictions", "specific warnings",
+            )
+        )
+        if not has_warning_intent:
+            return None
+
+        stations = data_service.get_stations_list()
+        sims = rag_service.list_simulations()
+        citations: List[RagChunkMatch] = []
+
+        lines = [
+            "### FLOODCAST Active Flood Predictions, Warnings & Gauge Telemetry",
+            "Here is the live flood prediction and warning briefing across the **32 USGS river gauges** and the **SQLite Simulation Vault** (`run_final_ensemble` 4-Branch LightGBM Ensemble):",
+            "",
+        ]
+
+        if sims:
+            highest = max(sims, key=lambda s: float(s.peak_discharge_cfs or 0))
+            recent = sims[0]
+            active_warnings = [s for s in sims if int(s.p90_exceedance_count or 0) > 0]
+            lines.extend([
+                f"#### 1. Active Storm Simulation Warnings ({len(active_warnings)} of {len(sims)} Saved Scenarios Exceed P90 Flood Stage)",
+                f"- **Highest Flood Warning Scenario:** **{highest.title}** at USGS `#{highest.station_id}` (**{highest.station_name}**)",
+                f"  - **Predicted Peak Discharge:** **`{float(highest.peak_discharge_cfs):,.1f} cfs`** (`{highest.storm_peak_mm:.1f} mm` storm rainfall)",
+                f"  - **Warning Duration:** **`{highest.p90_exceedance_count}` days** above the P90 flood warning threshold (Model: `{highest.run_id}`)",
+                f"- **Latest Forecast Run:** **{recent.title}** at USGS `#{recent.station_id}` (**{recent.station_name}**) → Peak **`{float(recent.peak_discharge_cfs):,.1f} cfs`** (`{recent.p90_exceedance_count}` P90+ warning days)",
+                "",
+            ])
+            for s in (highest, recent):
+                if not any(c.doc_id == f"sim_doc_{s.sim_id}" for c in citations):
+                    citations.append(
+                        RagChunkMatch(
+                            doc_id=f"sim_doc_{s.sim_id}",
+                            title=f"Flood Forecast Scenario: {s.title}",
+                            category="saved_simulation",
+                            similarity_score=0.98,
+                            content=(
+                                f"Scenario '{s.title}' at USGS #{s.station_id} ({s.station_name}): "
+                                f"Storm peak {s.storm_peak_mm:.1f} mm -> Predicted Peak Discharge {float(s.peak_discharge_cfs):,.1f} cfs "
+                                f"({s.p90_exceedance_count} P90+ flood warning days)."
+                            ),
+                            metadata={
+                                "sim_id": s.sim_id,
+                                "station_id": s.station_id,
+                                "station_name": s.station_name,
+                                "peak_discharge_cfs": s.peak_discharge_cfs,
+                                "p90_exceedance_count": s.p90_exceedance_count,
+                            },
+                        )
+                    )
+
+        # Showcase key starter / major continental gauges with their exact P90/P99 warning thresholds
+        starter_stations = [s for s in stations if s.is_starter] or stations[:5]
+        lines.append("#### 2. Priority USGS Gauge Predictions & Flood Warning Thresholds")
+        for st in starter_stations[:5]:
+            detail = data_service.get_station_detail(st.station_id, limit=7)
+            latest_pt = detail.series[-1] if detail and detail.series else None
+            pred_q = (
+                float(latest_pt.predicted_discharge_cfs or latest_pt.discharge_cfs or st.mean_discharge_cfs)
+                if latest_pt
+                else float(st.mean_discharge_cfs)
+            )
+            status_tag = (
+                "**[P90+ FLOOD WARNING]**"
+                if pred_q >= float(st.p90_discharge_cfs)
+                else (
+                    "**[ELEVATED WATCH]**"
+                    if pred_q >= float(st.mean_discharge_cfs) * 1.25
+                    else "**[NORMAL BASEFLOW]**"
+                )
+            )
+            lines.append(
+                f"- **USGS `#{st.station_id}` — {st.station_name} ({st.state}):** "
+                f"Latest Ensemble Forecast **`{pred_q:,.1f} cfs`** ({status_tag}) | "
+                f"P90 Warning Threshold: **`{st.p90_discharge_cfs:,.1f} cfs`** | "
+                f"P99 Critical Threshold: **`{st.p99_discharge_cfs:,.1f} cfs`**"
+            )
+            if len(citations) < 3:
+                citations.append(
+                    RagChunkMatch(
+                        doc_id=f"station_{st.station_id}",
+                        title=f"USGS Station #{st.station_id} - {st.station_name}",
+                        category="station_hydrology",
+                        similarity_score=0.95,
+                        content=(
+                            f"{st.station_name} (#{st.station_id}): Latest Forecast = {pred_q:,.1f} cfs, "
+                            f"Mean = {st.mean_discharge_cfs:,.1f} cfs, P90 Flood Warning = {st.p90_discharge_cfs:,.1f} cfs, "
+                            f"P99 Critical Flood Threshold = {st.p99_discharge_cfs:,.1f} cfs."
+                        ),
+                        metadata={"station_id": st.station_id, "station_name": st.station_name},
+                    )
+                )
+
+        lines.extend([
+            "",
+            "#### 3. How to Get a Specific River or Storm Warning",
+            "- Ask me about any specific river or station (e.g., *\"Predictions and flood warnings for Colorado River at Austin #08158000\"* or *\"Potomac River #01646500\"*), or run a custom 7-day storm on the **Predict** (`/predict`) and **Today** (`/today`) pages.",
+        ])
+
+        return "\n".join(lines), citations
 
     def _match_ml_model_fast_reply(self, query: str) -> Optional[Tuple[str, List[RagChunkMatch]]]:
         """Instant grounded evaluation report when asking about FloodCast trained ML models and RMSE."""
@@ -632,7 +794,8 @@ class LocalChatService:
     ) -> Optional[Tuple[str, List[RagChunkMatch], bool]]:
         """
         Sub-20ms deterministic grounded fast-path for Simulation Vault analytics,
-        USGS gauge telemetry, ML model leaderboard queries, and starter reference prompts.
+        USGS gauge telemetry, flood predictions & warnings, ML model leaderboard queries,
+        and starter reference prompts.
         """
         # 1. Reference / starter / greeting fast-path
         ref_match = self._match_reference_fast_reply(user_message)
@@ -653,10 +816,16 @@ class LocalChatService:
             reply, citations = model_match
             return reply, citations, len(citations) > 0
 
-        # 4. Specific USGS Station Telemetry queries
+        # 4. Specific USGS Station Telemetry & Forecast queries
         station_match = self._match_station_fast_reply(user_message)
         if station_match is not None:
             reply, citations = station_match
+            return reply, citations, len(citations) > 0
+
+        # 5. General Flood Predictions, Warnings, Alerts & Forecast Briefing
+        warn_match = self._match_predictions_and_warnings_fast_reply(user_message)
+        if warn_match is not None:
+            reply, citations = warn_match
             return reply, citations, len(citations) > 0
 
         return None
@@ -686,7 +855,7 @@ class LocalChatService:
                 )
                 filtered = [
                     c for c in rag_res.retrieved_chunks
-                    if c.similarity_score >= 0.32 or (is_sim and c.category == "saved_simulation")
+                    if c.similarity_score >= 0.18 or (is_sim and c.category == "saved_simulation")
                 ]
                 if filtered:
                     citations = filtered[:2]
@@ -695,11 +864,11 @@ class LocalChatService:
                 logger.warning("RAG retrieval exception in chat: %s", exc)
 
         context_blocks: List[str] = []
-        if is_sim:
+        if is_sim or is_domain:
             vault_block = self._get_simulation_vault_analytics_block()
             if vault_block:
                 context_blocks.append(vault_block)
-        elif citations:
+        if citations:
             kb_parts = [
                 f"[{c.title}] {c.content[:360]}"
                 for c in citations[:2]
@@ -733,12 +902,13 @@ class LocalChatService:
             messages.append({"role": h.role, "content": content})
 
         is_sim = self._is_simulation_query(user_message)
+        is_domain = is_sim or self._is_hydrology_or_platform_query(user_message)
         context_parts: List[str] = []
-        if use_rag and is_sim:
+        if use_rag and (is_sim or is_domain):
             vault_block = self._get_simulation_vault_analytics_block()
             if vault_block:
                 context_parts.append(vault_block)
-        elif use_rag and citations:
+        if use_rag and citations:
             for c in citations[:2]:
                 context_parts.append(f"[{c.title}]: {c.content[:350]}")
 

@@ -15,8 +15,9 @@ frontend/out/
 node_modules/
 *.tsbuildinfo
 
-# Temporary matplotlib, CatBoost, SQLite test logs & API cache
+# Temporary matplotlib, CatBoost, SQLite test logs, ONNX LLM weights & API cache
 artifacts/.mplconfig/
+artifacts/onnx_llm/
 artifacts/test_gate_confirmed_run/
 catboost_info/
 backend/floodcast_meta.db

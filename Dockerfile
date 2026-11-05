@@ -8,7 +8,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_API_URL=/api/v1
 RUN mkdir -p public && npm run build
 
-# Stage 2: Final runtime container with Python 3.12 + Node.js 20
+# Stage 2: Final runtime container with Python 3.12 + Node.js 20 + Ollama
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -44,7 +44,7 @@ COPY docs /app/docs
 COPY artifacts /app/artifacts
 COPY data /app/data
 COPY experiments /app/experiments
-COPY README.md model_card.md solution.py /app/
+COPY README.md model_card.md solution.py predictions.csv /app/
 
 # Copy Built Frontend Standalone
 COPY --from=frontend-builder /app/public /app/frontend/public
@@ -55,7 +55,7 @@ COPY --from=frontend-builder /app/.next/static /app/frontend/.next/static
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Expose default Hugging Face Spaces port
+# Expose default port
 EXPOSE 8080
 
 CMD ["/app/entrypoint.sh"]

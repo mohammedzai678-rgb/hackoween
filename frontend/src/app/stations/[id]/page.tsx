@@ -65,8 +65,14 @@ export default function StationDetailPage() {
 
   const { station, sanity_stats, series } = detail;
 
-  // Simple inline bar chart for discharge
-  const maxQ = Math.max(1, ...series.map((p) => p.discharge_cfs ?? 0));
+  // Simple inline bar chart for discharge (actual or predicted)
+  const recentWindow = series.slice(-90);
+  const maxQ = Math.max(
+    1,
+    ...recentWindow.map((p) =>
+      Math.max(p.discharge_cfs ?? 0, p.predicted_discharge_cfs ?? 0)
+    )
+  );
 
   return (
     <div className="space-y-6">
@@ -174,10 +180,17 @@ export default function StationDetailPage() {
 
         {/* Simple bar chart */}
         <div className="flex items-end gap-[1px] h-40 overflow-hidden">
-          {series.slice(-90).map((pt, idx) => {
-            const actual = pt.discharge_cfs ?? 0;
-            const height = Math.max(1, (actual / maxQ) * 100);
+          {recentWindow.map((pt, idx) => {
+            const actual = pt.discharge_cfs ?? pt.predicted_discharge_cfs ?? 0;
+            const height = Math.max(2, (actual / maxQ) * 100);
             const isExtreme = pt.is_extreme_p90;
+            const tooltipParts = [pt.date];
+            if (pt.discharge_cfs !== null && pt.discharge_cfs !== undefined) {
+              tooltipParts.push(`Actual: ${pt.discharge_cfs.toLocaleString()} cfs`);
+            }
+            if (pt.predicted_discharge_cfs !== null && pt.predicted_discharge_cfs !== undefined) {
+              tooltipParts.push(`Predicted: ${pt.predicted_discharge_cfs.toLocaleString()} cfs`);
+            }
             return (
               <div
                 key={idx}
@@ -187,16 +200,16 @@ export default function StationDetailPage() {
                   backgroundColor: isExtreme
                     ? "var(--warning)"
                     : "var(--accent)",
-                  opacity: 0.7,
+                  opacity: 0.75,
                 }}
-                title={`${pt.date}: ${actual.toLocaleString()} cfs`}
+                title={tooltipParts.join(" · ")}
               />
             );
           })}
         </div>
         <div className="flex justify-between mt-2 text-[10px] text-[var(--text-muted)]">
-          <span>{series.slice(-90)[0]?.date}</span>
-          <span>{series[series.length - 1]?.date}</span>
+          <span>{recentWindow[0]?.date}</span>
+          <span>{recentWindow[recentWindow.length - 1]?.date}</span>
         </div>
       </div>
 
