@@ -12,6 +12,10 @@ Use this page when a judge, reviewer, or maintainer needs to find the implementa
 | [model_card.md](../model_card.md) | Model disclosure, validation results, provenance, and limitations |
 | [requirements.txt](../requirements.txt) | Python dependencies |
 | [Makefile](../Makefile) | Common pipeline, validation, test, and Docker commands |
+| [train.csv](../train.csv) | Root-level convenience copy of the canonical training dataset |
+| [test.csv](../test.csv) | Root-level convenience copy of the canonical prediction input dataset |
+| [sample_submission.csv](../sample_submission.csv) | Root-level submission template |
+| [station_metadata.csv](../station_metadata.csv) | Root-level station metadata |
 
 ## Python pipeline
 

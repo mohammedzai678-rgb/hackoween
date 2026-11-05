@@ -100,6 +100,15 @@ python -m pytest tests -q
 
 The first command checks the exact submission contract. The second runs the leakage, scoring, API, RAG, and submission-checker tests. Both commands were run against this repository snapshot; the expected result is a passing submission check and 44 passing tests.
 
+The challenge input/output files are also available directly in the repository root for judge convenience:
+
+- `train.csv`
+- `test.csv`
+- `sample_submission.csv`
+- `station_metadata.csv`
+
+The canonical pipeline copies remain under `data/processed/`, where `configs/base.yaml` points by default. The root-level files are identical convenience copies.
+
 - **Root Submission Deliverables**:
   - `predictions.csv` (`10,585` rows, `29` stations, `2022-01-01..2022-12-31`, `PASS`)
   - `solution.py`, `model_card.md`, `requirements.txt`, `Makefile`, `docker-compose.yml`

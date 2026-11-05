@@ -21,6 +21,10 @@ The current repository snapshot contains:
 
 The station metadata file contains 32 configured/known stations; two stations do not have a complete row in the final train/test prediction split. Always use the actual processed CSVs for row counts.
 
+For convenience, the four challenge CSVs are also present at the repository root:
+`train.csv`, `test.csv`, `sample_submission.csv`, and `station_metadata.csv`.
+They are identical copies of the canonical files in `data/processed/`. The runnable pipeline continues to use `data/processed/` through `configs/base.yaml`.
+
 ## 2. Five-minute verification
 
 From the repository root:
