@@ -31,13 +31,6 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import faiss
 import numpy as np
-import torch
-from transformers import BertConfig, BertModel
-
-try:
-    torch.set_num_threads(1)
-except Exception:
-    pass
 
 try:
     faiss.omp_set_num_threads(1)
@@ -63,14 +56,6 @@ FAISS_INDEX_PATH = VECTOR_STORE_DIR / "faiss_floodcast.index"
 VAULT_DB_PATH = VECTOR_STORE_DIR / "floodcast_vault.db"
 TRANSFORMER_DIR = VECTOR_STORE_DIR / "hydro_transformer_minilm"
 WEIGHTS_NPZ_PATH = VECTOR_STORE_DIR / "transformer_weights.npz"
-
-# Suppress HuggingFace progress bar and warning noise on Windows
-try:
-    from transformers.utils import logging as tf_logging
-    tf_logging.set_verbosity_error()
-    tf_logging.disable_progress_bar()
-except Exception:
-    pass
 
 EMBEDDING_DIM = 384
 TRANSFORMER_HIDDEN_DIM = 192
@@ -116,7 +101,6 @@ class HydroTransformerEmbedder:
         self.model_dir = model_dir
         self.vocab_size = 4096
         self.max_len = 128
-        self.device = torch.device("cpu")
         self._init_or_load_transformer()
 
     def _init_or_load_transformer(self) -> None:
@@ -144,6 +128,18 @@ class HydroTransformerEmbedder:
             except Exception as exc:
                 logger.warning("Could not read cached transformer weights, re-extracting: %s", exc)
 
+        import torch
+        from transformers import BertConfig, BertModel
+
+        try:
+            torch.set_num_threads(1)
+            from transformers.utils import logging as tf_logging
+            tf_logging.set_verbosity_error()
+            tf_logging.disable_progress_bar()
+        except Exception:
+            pass
+
+        self.device = torch.device("cpu")
         torch.manual_seed(42)
         if config_path.exists():
             try:
@@ -177,6 +173,8 @@ class HydroTransformerEmbedder:
 
     def _extract_numpy_weights(self) -> None:
         """Extract BertModel embedding and attention projection tensors for thread-safe <2ms execution on Windows."""
+        import torch
+
         with torch.no_grad():
             self.word_emb_np = (
                 self.model.embeddings.word_embeddings.weight.detach().cpu().numpy().astype(np.float32)
@@ -311,6 +309,38 @@ class RagVectorService:
         self.embedder: Optional[HydroTransformerEmbedder] = None
         self.index = faiss.IndexFlatIP(EMBEDDING_DIM)
         self._faiss_id_to_doc_id: List[str] = []
+        self._docs_cache: Dict[str, Dict[str, Any]] = {}
+        self._simulations_cache: Optional[List[SimulationRecord]] = None
+        self._db_mtime: float = 0.0
+
+    def _get_db_mtime(self) -> float:
+        try:
+            return VAULT_DB_PATH.stat().st_mtime if VAULT_DB_PATH.exists() else 0.0
+        except Exception:
+            return 0.0
+
+    def _load_docs_cache_conn(self, conn: sqlite3.Connection) -> List[sqlite3.Row]:
+        rows = conn.execute(
+            "SELECT doc_id, title, category, station_id, content, metadata_json FROM rag_documents ORDER BY doc_id ASC"
+        ).fetchall()
+        cache: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            try:
+                meta = json.loads(r["metadata_json"] or "{}")
+            except Exception:
+                meta = {}
+            doc_id = str(r["doc_id"])
+            cache[doc_id] = {
+                "doc_id": doc_id,
+                "title": str(r["title"]),
+                "category": str(r["category"]),
+                "station_id": r["station_id"],
+                "content": str(r["content"]),
+                "metadata": meta,
+            }
+        self._docs_cache = cache
+        self._db_mtime = self._get_db_mtime()
+        return rows
 
     def _ensure_initialized(self) -> None:
         if self._initialized:
@@ -327,9 +357,7 @@ class RagVectorService:
                     loaded_index = faiss.read_index(str(FAISS_INDEX_PATH))
                     conn = self._get_conn()
                     try:
-                        rows = conn.execute(
-                            "SELECT doc_id FROM rag_documents ORDER BY doc_id ASC"
-                        ).fetchall()
+                        rows = self._load_docs_cache_conn(conn)
                         doc_ids = [str(r["doc_id"]) for r in rows]
                     finally:
                         conn.close()
@@ -434,9 +462,7 @@ class RagVectorService:
         with self._lock:
             conn = self._get_conn()
             try:
-                rows = conn.execute(
-                    "SELECT doc_id, title, category, content FROM rag_documents ORDER BY doc_id ASC"
-                ).fetchall()
+                rows = self._load_docs_cache_conn(conn)
             finally:
                 conn.close()
 
@@ -802,6 +828,7 @@ class RagVectorService:
         finally:
             conn.close()
 
+        self._simulations_cache = None
         if rebuild_index:
             self._rebuild_faiss_index()
 
@@ -810,6 +837,10 @@ class RagVectorService:
     def list_simulations(self) -> List[SimulationRecord]:
         self._ensure_initialized()
         with self._lock:
+            current_mtime = self._get_db_mtime()
+            if self._simulations_cache is not None and current_mtime == self._db_mtime:
+                return list(self._simulations_cache)
+
             conn = self._get_conn()
             try:
                 rows = conn.execute(
@@ -850,7 +881,9 @@ class RagVectorService:
                         predictions=preds,
                     )
                 )
-            return result
+            self._simulations_cache = result
+            self._db_mtime = current_mtime
+            return list(result)
 
     def delete_simulation(self, sim_id: str) -> bool:
         self._ensure_initialized()
@@ -869,6 +902,7 @@ class RagVectorService:
             finally:
                 conn.close()
 
+            self._simulations_cache = None
             if deleted:
                 self._rebuild_faiss_index()
             return deleted
@@ -955,31 +989,24 @@ class RagVectorService:
             search_k = total_vecs if total_vecs <= 100 else min(total_vecs, max(req.top_k * 10, 50))
             scores, indices = self.index.search(q_vec, search_k)
 
-            conn = self._get_conn()
-            try:
-                doc_rows = {
-                    str(r["doc_id"]): r
-                    for r in conn.execute("SELECT * FROM rag_documents").fetchall()
-                }
-            finally:
-                conn.close()
+            if not self._docs_cache or self._get_db_mtime() != self._db_mtime:
+                conn = self._get_conn()
+                try:
+                    self._load_docs_cache_conn(conn)
+                finally:
+                    conn.close()
 
             matched_chunks: List[RagChunkMatch] = []
             for score, idx in zip(scores[0], indices[0]):
                 if idx < 0 or idx >= len(self._faiss_id_to_doc_id):
                     continue
                 doc_id = self._faiss_id_to_doc_id[idx]
-                row = doc_rows.get(doc_id)
+                row = self._docs_cache.get(doc_id)
                 if not row:
                     continue
                 if req.category_filter and req.category_filter != "all":
                     if str(row["category"]) != req.category_filter:
                         continue
-
-                try:
-                    meta = json.loads(row["metadata_json"] or "{}")
-                except Exception:
-                    meta = {}
 
                 matched_chunks.append(
                     RagChunkMatch(
@@ -988,7 +1015,7 @@ class RagVectorService:
                         category=str(row["category"]),
                         similarity_score=round(float(max(0.0, min(1.0, score))), 4),
                         content=str(row["content"]),
-                        metadata=meta,
+                        metadata=dict(row["metadata"]),
                     )
                 )
                 if len(matched_chunks) >= req.top_k:

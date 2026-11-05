@@ -192,9 +192,17 @@ def warm_ml_models_on_startup() -> None:
         logger.warning("Startup ML model pre-warm warning: %s", exc)
 
     try:
+        data_service.get_stations_list()
+        data_service.get_runs_list()
         from backend.app.services.rag_service import rag_service
         rag_service._ensure_initialized()
-        logger.info("Pre-warmed FAISS Vector DB and Hydrological Transformer Embedder.")
+        logger.info("Pre-warmed FAISS Vector DB, Station Telemetry, and Hydrological Transformer Embedder.")
     except Exception as exc:
         logger.warning("Startup RAG service pre-warm warning: %s", exc)
+
+    try:
+        from backend.app.services.chat_service import chat_service
+        chat_service.warm_up_async()
+    except Exception as exc:
+        logger.warning("Startup chat service warm-up warning: %s", exc)
 

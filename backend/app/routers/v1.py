@@ -411,8 +411,9 @@ def post_chat_stream(req: ChatRequest):
         chat_service.stream_chat(req),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
+            "Content-Encoding": "identity",
             "X-Accel-Buffering": "no",
         },
     )

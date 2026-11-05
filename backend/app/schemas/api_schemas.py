@@ -393,7 +393,7 @@ class ChatRequest(BaseModel):
 
     message: str
     history: List[ChatMessage] = Field(default_factory=list)
-    model: Optional[str] = "qwen3.5:2b-q4_K_M"
+    model: Optional[str] = "qwen2.5:1.5b"
     use_rag: bool = True
     temperature: float = 0.4
 

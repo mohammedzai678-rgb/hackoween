@@ -102,12 +102,14 @@ export default function ChatPage() {
     });
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (instant = false) => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: instant || isStreaming ? "auto" : "smooth",
+    });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom(isStreaming);
   }, [messages, isStreaming]);
 
   // Handle textarea auto-resize
@@ -173,24 +175,47 @@ export default function ChatPage() {
       let accumulatedContent = "";
       let finalCitations: RagChunkMatch[] = [];
       let sourcesUsed = false;
+      let resolvedModel = selectedModel;
 
       for await (const chunk of stream) {
-        if (chunk.token) {
-          accumulatedContent += chunk.token;
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMsgId
-                ? { ...msg, content: accumulatedContent }
-                : msg
-            )
-          );
+        if (chunk.model) {
+          resolvedModel = chunk.model;
         }
-
         if (chunk.citations) {
           finalCitations = chunk.citations;
         }
         if (chunk.sources_used !== undefined) {
           sourcesUsed = chunk.sources_used;
+        }
+
+        if (chunk.token) {
+          accumulatedContent += chunk.token;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMsgId
+                ? {
+                    ...msg,
+                    content: accumulatedContent,
+                    model: resolvedModel || msg.model,
+                    citations: finalCitations,
+                    sources_used: sourcesUsed,
+                  }
+                : msg
+            )
+          );
+        } else if (chunk.citations || chunk.model) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMsgId
+                ? {
+                    ...msg,
+                    model: resolvedModel || msg.model,
+                    citations: finalCitations,
+                    sources_used: sourcesUsed,
+                  }
+                : msg
+            )
+          );
         }
 
         if (chunk.error) {
