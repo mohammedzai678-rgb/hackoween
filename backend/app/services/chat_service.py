@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import queue
 import re
+import threading
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import requests
@@ -236,6 +238,7 @@ class LocalChatService:
             "model": target_model,
             "messages": messages,
             "stream": True,
+            "keep_alive": "5m",
             "options": {
                 "temperature": req.temperature,
                 "top_p": 0.9,
@@ -244,48 +247,73 @@ class LocalChatService:
             },
         }
 
-        full_reply = ""
+        events: queue.Queue[Optional[Dict[str, Any]]] = queue.Queue()
+
+        def run_ollama() -> None:
+            try:
+                with requests.post(
+                    f"{base_url}/api/chat",
+                    json=ollama_payload,
+                    stream=True,
+                    timeout=(5.0, 180.0),
+                ) as resp:
+                    if resp.status_code != 200:
+                        events.put({
+                            "error": f"Ollama returned HTTP {resp.status_code}: {resp.text}"
+                        })
+                        return
+
+                    for line in resp.iter_lines(decode_unicode=True):
+                        if not line:
+                            continue
+                        try:
+                            chunk = json.loads(line)
+                        except (TypeError, ValueError):
+                            continue
+
+                        if chunk.get("error"):
+                            events.put({"error": str(chunk["error"])})
+                            return
+
+                        token = chunk.get("message", {}).get("content", "")
+                        if token:
+                            events.put({"token": token})
+
+                        if chunk.get("done", False):
+                            break
+
+                events.put({
+                    "done": True,
+                    "model": target_model,
+                    "sources_used": sources_used,
+                    "citations": [c.model_dump() for c in citations],
+                })
+            except Exception as exc:
+                logger.error("Error streaming from Ollama: %s", exc)
+                events.put({"error": f"Local inference engine error: {str(exc)}"})
+            finally:
+                events.put(None)
+
+        worker = threading.Thread(target=run_ollama, daemon=True)
+        worker.start()
         try:
-            resp = requests.post(
-                f"{base_url}/api/chat",
-                json=ollama_payload,
-                stream=True,
-                timeout=60.0,
-            )
-
-            if resp.status_code != 200:
-                err_chunk = json.dumps({"error": f"Ollama returned HTTP {resp.status_code}: {resp.text}"})
-                yield f"data: {err_chunk}\n\n"
-                return
-
-            for line in resp.iter_lines(decode_unicode=True):
-                if not line:
-                    continue
+            while True:
                 try:
-                    chunk = json.loads(line)
-                    token = chunk.get("message", {}).get("content", "")
-                    if token:
-                        full_reply += token
-                        yield f"data: {json.dumps({'token': token})}\n\n"
-
-                    if chunk.get("done", False):
-                        break
-                except Exception:
+                    event = events.get(timeout=10.0)
+                except queue.Empty:
+                    # Keep the proxy connection alive during cold model loading.
+                    yield ": keep-alive\n\n"
                     continue
-
-            # Send final payload with citations and metadata
-            final_data = {
-                "done": True,
-                "model": target_model,
-                "sources_used": sources_used,
-                "citations": [c.model_dump() for c in citations],
-            }
-            yield f"data: {json.dumps(final_data)}\n\n"
-
-        except Exception as exc:
-            logger.error("Error streaming from Ollama: %s", exc)
-            err_data = json.dumps({"error": f"Local inference engine error: {str(exc)}"})
-            yield f"data: {err_data}\n\n"
+                if event is None:
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            # If the client disconnects, do not retain queued tokens in this generator.
+            while not events.empty():
+                try:
+                    events.get_nowait()
+                except queue.Empty:
+                    break
 
     def generate_chat(self, req: ChatRequest) -> ChatResponse:
         """Non-streaming complete chat response."""
@@ -309,6 +337,7 @@ class LocalChatService:
             "model": target_model,
             "messages": messages,
             "stream": False,
+            "keep_alive": "5m",
             "options": {
                 "temperature": req.temperature,
                 "top_p": 0.9,

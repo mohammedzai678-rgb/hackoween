@@ -9,8 +9,8 @@ echo "=========================================================="
 export OLLAMA_NUM_PARALLEL=1
 export OLLAMA_MAX_LOADED_MODELS=1
 export OLLAMA_FLASH_ATTENTION=1
-# Release the local model after each request so it does not occupy scarce RAM while idle.
-export OLLAMA_KEEP_ALIVE=0
+# Keep the small local chat model warm briefly so each chat does not pay a cold-load delay.
+export OLLAMA_KEEP_ALIVE=5m
 export OMP_NUM_THREADS=2
 export MKL_NUM_THREADS=2
 
